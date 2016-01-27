@@ -1,15 +1,19 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TupleSections #-}
 module Sardine.Compiler.Module (
     moduleOfProgram
   ) where
 
+import qualified Data.List as List
 import           Data.Text (Text)
 import qualified Data.Text as T
 
-import           Language.Haskell.Exts.Syntax
+import           Language.Haskell.Exts.QQ (decs)
 import           Language.Haskell.Exts.SrcLoc (noLoc)
+import           Language.Haskell.Exts.Syntax
 
 import           Language.Thrift.Types (Program(..))
 import           Language.Thrift.Types (Header(..), Namespace(..))
@@ -17,8 +21,10 @@ import           Language.Thrift.Types (Header(..), Namespace(..))
 import           P
 
 import           Sardine.Compiler.Data
-import           Sardine.Compiler.Error
-import           Sardine.Compiler.Util
+import           Sardine.Compiler.Decode
+import           Sardine.Compiler.Default
+import           Sardine.Compiler.Monad
+import           Sardine.Haskell.Combinators
 
 import           System.FilePath (FilePath, takeBaseName)
 
@@ -35,29 +41,71 @@ moduleNameOfHeader = \case
     | otherwise ->
       Nothing
 
-import' :: ModuleName -> [ImportSpec] -> ImportDecl
-import' modName specs =
+exportMatch :: Match -> ExportSpec
+exportMatch = \case
+  Match _ name _ _ _ _ ->
+    EVar (UnQual name)
+
+exportDecl :: Decl -> [ExportSpec]
+exportDecl = \case
+  DataDecl _ _ _ tyName _ _ _ ->
+    [EThingAll $ UnQual tyName]
+  FunBind matches ->
+    List.nub (fmap exportMatch matches)
+  _ ->
+    []
+
+exportAll :: [Decl] -> [ExportSpec]
+exportAll =
+  concatMap exportDecl
+
+importSpecs' :: ModuleName -> Maybe [ImportSpec] -> Maybe ModuleName -> ImportDecl
+importSpecs' modName mspecs mas =
   ImportDecl {
       importLoc = noLoc
     , importModule = modName
-    , importQualified = False
+    , importQualified = isJust mas
     , importSrc = False
     , importSafe = False
     , importPkg = Nothing
-    , importAs = Nothing
-    , importSpecs = Just (False, specs)
+    , importAs = mas
+    , importSpecs = fmap (False,) mspecs
     }
 
-ivar :: Text -> ImportSpec
-ivar =
+importSome :: ModuleName -> [ImportSpec] -> ImportDecl
+importSome modName specs =
+  importSpecs' modName (Just specs) Nothing
+
+importAll :: ModuleName -> ImportDecl
+importAll modName =
+  importSpecs' modName Nothing Nothing
+
+importQual :: ModuleName -> ModuleName -> ImportDecl
+importQual modName mas =
+  importSpecs' modName Nothing (Just mas)
+
+varI :: Text -> ImportSpec
+varI =
   IVar . Ident . T.unpack
 
-moduleOfProgram :: FilePath -> Program a -> Either (CompilerError a) Module
+allI :: Text -> ImportSpec
+allI =
+  IThingAll . Ident . T.unpack
+
+varS :: Text -> ImportSpec
+varS =
+  IVar . Symbol . T.unpack
+
+modN :: Text -> ModuleName
+modN =
+  ModuleName . T.unpack
+
+moduleOfProgram :: FilePath -> Program a -> Compiler a Module
 moduleOfProgram path = \case
   Program hdrs defs -> do
     let
       defaultName =
-        ModuleName . T.unpack . pascalOfText . T.pack $ takeBaseName path
+        modN . pascalOfText . T.pack $ takeBaseName path
 
       moduleNames =
         fmap moduleNameOfHeader hdrs
@@ -66,29 +114,60 @@ moduleOfProgram path = \case
         fromMaybe defaultName $ foldl (<|>) Nothing moduleNames
 
       pragmas =
-        [ LanguagePragma noLoc [Ident "NoImplicitPrelude"]
+        [ LanguagePragma noLoc [Ident "BangPatterns"]
+        , LanguagePragma noLoc [Ident "DoAndIfThenElse"]
+        , LanguagePragma noLoc [Ident "LambdaCase"]
+        , LanguagePragma noLoc [Ident "NoImplicitPrelude"]
+        , LanguagePragma noLoc [Ident "OverloadedStrings"]
+        , OptionsPragma noLoc (Just GHC) "-fno-warn-unused-binds"
         , OptionsPragma noLoc (Just GHC) "-fno-warn-unused-imports"
         , OptionsPragma noLoc (Just GHC) "-funbox-strict-fields"
         ]
 
       imports =
-        [ import' (ModuleName "Data.Bool") [ivar "Bool"]
-        , import' (ModuleName "Data.ByteString") [ivar "ByteString"]
-        , import' (ModuleName "Data.Eq") [ivar "Eq"]
-        , import' (ModuleName "Data.Int") [ivar "Int16", ivar "Int32", ivar "Int64"]
-        , import' (ModuleName "Data.Map") [ivar "Map"]
-        , import' (ModuleName "Data.Maybe") [ivar "Maybe"]
-        , import' (ModuleName "Data.Ord") [ivar "Ord"]
-        , import' (ModuleName "Data.Set") [ivar "Set"]
-        , import' (ModuleName "Data.Text") [ivar "Text"]
-        , import' (ModuleName "Data.Vector") [ivar "Vector"]
-        , import' (ModuleName "Data.Word") [ivar "Word8"]
-        , import' (ModuleName "Prelude") [ivar "Double"]
-        , import' (ModuleName "Text.Read") [ivar "Read"]
-        , import' (ModuleName "Text.Show") [ivar "Show"]
+        [ importSome (modN "Control.Exception") [varI "throw"]
+        , importSome (modN "Control.Monad") [varI "return", varI "unless", varI "replicateM"]
+        , importSome (modN "Data.Bits") [allI "Bits"]
+        , importSome (modN "Data.Bool") [allI "Bool", varS "&&"]
+        , importSome (modN "Data.ByteString") [varI "ByteString"]
+        , importQual (modN "Data.ByteString") (modN "B")
+        , importSome (modN "Data.Eq") [allI "Eq"]
+        , importSome (modN "Data.Function") [varS "."]
+        , importSome (modN "Data.Functor") [varS "<$>", varI "fmap"]
+        , importSome (modN "Data.Int") [varI "Int16", varI "Int32", varI "Int64"]
+        , importSome (modN "Data.Map") [varI "Map"]
+        , importQual (modN "Data.Map") (modN "Map")
+        , importSome (modN "Data.Maybe") [allI "Maybe"]
+        , importSome (modN "Data.Ord") [varI "Ord"]
+        , importSome (modN "Data.Set") [varI "Set"]
+        , importQual (modN "Data.Set") (modN "Set")
+        , importSome (modN "Data.Text") [varI "Text"]
+        , importQual (modN "Data.Text") (modN "T")
+        , importQual (modN "Data.Text.Encoding") (modN "T")
+        , importQual (modN "Data.Vector") (modN "Boxed")
+        , importQual (modN "Data.Vector.Unboxed") (modN "Unboxed")
+        , importQual (modN "Data.Vector.Hybrid") (modN "Hybrid")
+        , importSome (modN "Data.Word") [varI "Word8", varI "Word64"]
+        , importSome (modN "GHC.Exts") [allI "SpecConstrAnnotation"]
+        , importSome (modN "Prelude") [allI "Num", varI "Double", varS "$!", varI "fromIntegral"]
+        , importAll (modN "Sardine.Runtime")
+        , importSome (modN "Text.Read") [varI "Read"]
+        , importSome (modN "Text.Show") [varI "Show"]
         ]
 
     datas <- traverse dataOfDefinition defs
+    defaults <- concat <$> traverse defaultOfDefinition defs
+    decodes <- concat <$> traverse decodeOfDefinition defs
 
-    pure $
-      Module noLoc moduleName pragmas Nothing Nothing imports datas
+    let
+      exports =
+        Just . exportAll $ datas <> decodes
+
+    pure . Module noLoc moduleName pragmas Nothing exports imports $
+      datas <>
+      defaults <>
+      decodes <>
+      [decs|
+        data SpecConstr = SpecConstr | SpecConstr2
+        {-# ANN type SpecConstr ForceSpecConstr #-}
+      |]

@@ -3,7 +3,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Sardine.Haskell.Pretty (
     ppModule
+
   , PrettyError(..)
+  , renderPrettyError
   ) where
 
 import qualified Data.List as List
@@ -12,32 +14,93 @@ import qualified Data.Text as T
 
 import           Language.Haskell.Exts.Syntax
 
-import           P hiding (exp)
+import           P hiding (Alt, exp, pi)
 
 import           Sardine.Pretty
 
 
 data PrettyError =
-    UnsupportedSyntax !Text
+    WhereClauseNotSupported !Binds
+  | SyntaxNotSupported !Text !Text
     deriving (Eq, Ord, Show)
 
-unsupported :: Show a => a -> Either PrettyError b
-unsupported =
-  Left . UnsupportedSyntax . T.pack . show
+renderPrettyError :: PrettyError -> Text
+renderPrettyError = \case
+  WhereClauseNotSupported binds ->
+    "Where clauses are not supported:\n  " <> T.pack (show binds)
+  SyntaxNotSupported typ syntax ->
+    typ <> " syntax not supported:\n  " <> syntax
+
+unsupported :: Show a => Text -> a -> Either PrettyError b
+unsupported typ =
+  Left . SyntaxNotSupported typ . T.pack . show
+
+isSymbol :: Name -> Bool
+isSymbol = \case
+  Ident _ ->
+    False
+  Symbol _ ->
+    True
+
+isQSymbol :: QName -> Bool
+isQSymbol = \case
+  Qual _ name ->
+    isSymbol name
+  UnQual name ->
+    isSymbol name
+  Special _ ->
+    False
+
+ppNameRaw :: Name -> Doc
+ppNameRaw = \case
+  Ident name ->
+    string name
+  Symbol name ->
+    string name
+
+ppQNameRaw :: QName -> Doc
+ppQNameRaw = \case
+  Qual modn name ->
+    ppModuleName modn <> "." <> ppNameRaw name
+  UnQual name ->
+    ppNameRaw name
+  Special sc ->
+    ppSpecialCon sc
 
 ppName :: Name -> Doc
-ppName = \case
-  Ident name ->
-    string name
-  Symbol name ->
-    parens (string name)
+ppName name =
+  if isSymbol name then
+    parens (ppNameRaw name)
+  else
+    ppNameRaw name
+
+ppQName :: QName -> Doc
+ppQName qname =
+  if isQSymbol qname then
+    parens (ppQNameRaw qname)
+  else
+    ppQNameRaw qname
 
 ppNameInfix :: Name -> Doc
-ppNameInfix = \case
-  Ident name ->
-    "`" <> string name <> "`"
-  Symbol name ->
-    string name
+ppNameInfix name =
+  if isSymbol name then
+    ppNameRaw name
+  else
+    "`" <> ppNameRaw name <> "`"
+
+ppQNameInfix :: QName -> Doc
+ppQNameInfix qname =
+  if isQSymbol qname then
+    ppQNameRaw qname
+  else
+    "`" <> ppQNameRaw qname <> "`"
+
+ppQOp :: QOp -> Doc
+ppQOp = \case
+  QVarOp qname ->
+    ppQNameInfix qname
+  QConOp qname ->
+    ppQNameInfix qname
 
 ppModuleName :: ModuleName -> Doc
 ppModuleName = \case
@@ -61,15 +124,6 @@ ppSpecialCon = \case
   UnboxedSingleCon ->
     "(# #)"
 
-ppQName :: QName -> Doc
-ppQName = \case
-  Qual modn name ->
-    ppModuleName modn <> "." <> ppName name
-  UnQual name ->
-    ppName name
-  Special sc ->
-    ppSpecialCon sc
-
 ppBangType :: BangType -> Doc
 ppBangType = \case
   BangedTy ->
@@ -85,11 +139,14 @@ ppType = \case
     pf <- ppType f
     px <- ppType x
     pure $ pf <+> savageParens px
+  TyTuple Boxed tys -> do
+    ptys <- traverse ppType tys
+    pure $ parens (hcsep ptys)
   TyBang bang ty -> do
     pty <- ppType ty
     pure $ ppBangType bang <> savageParens pty
   ty ->
-    unsupported ty
+    unsupported "Type" ty
 
 ppDataOrNew :: DataOrNew -> Doc
 ppDataOrNew = \case
@@ -118,7 +175,7 @@ ppConDecl :: ConDecl -> Either PrettyError Doc
 ppConDecl = \case
   ConDecl name tys -> do
     ptys <- traverse ppType tys
-    pure $ ppName name <+> hsep ptys
+    pure $ hsep (ppName name : ptys)
   InfixConDecl x name y -> do
     px <- ppType x
     py <- ppType y
@@ -140,7 +197,7 @@ ppQualConDecl = \case
   QualConDecl _ [] [] con ->
     ppConDecl con
   qcon@(QualConDecl _ _ _ _) ->
-    unsupported qcon
+    unsupported "QualConDecl" qcon
 
 ppQualConDecls :: [QualConDecl] -> Either PrettyError Doc
 ppQualConDecls = \case
@@ -161,7 +218,7 @@ ppDeriving = \case
   (qname, []) ->
     pure $ ppQName qname
   derv@(_, _:_) ->
-    unsupported derv
+    unsupported "Deriving" derv
 
 ppDerivings :: [Deriving] -> Either PrettyError (Maybe Doc)
 ppDerivings = \case
@@ -171,6 +228,211 @@ ppDerivings = \case
     pds <- traverse ppDeriving ds
     pure . Just $
       "deriving (" <> hcat (punctuate ", " pds) <> ")"
+
+ppBinds :: Binds -> Either PrettyError Doc
+ppBinds = \case
+  BDecls decls ->
+    ppDecls decls
+  binds@(IPBinds _) ->
+    unsupported "Binds" binds
+
+hangExp :: Exp -> Either PrettyError Doc
+hangExp exp = do
+  pexp <- ppExp exp
+  pure $ " " <> pexp
+
+wrapExp :: Exp -> Either PrettyError Doc
+wrapExp exp = do
+  pexp <- ppExp exp
+  pure $ line <> "  " <> align pexp
+
+ppGeneratorExp :: Exp ->  Either PrettyError Doc
+ppGeneratorExp exp =
+  case exp of
+    If _ _ _ ->
+      wrapExp exp
+    Case _ _ ->
+      wrapExp exp
+    Let _ _ ->
+      wrapExp exp
+    _ ->
+      hangExp exp
+
+ppStmt :: Stmt -> Either PrettyError Doc
+ppStmt = \case
+  Generator _ pat exp -> do
+    ppat <- ppPat pat
+    pexp <- ppGeneratorExp exp
+    pure $ ppat <+> "<-" <> pexp
+  Qualifier exp -> do
+    ppExp exp
+  LetStmt binds -> do
+    pbinds <- ppBinds binds
+    pure $
+      "let" <&>
+      "  " <> align pbinds
+  stmt ->
+    unsupported "Stmt" stmt
+
+ppStmts :: [Stmt] -> Either PrettyError Doc
+ppStmts stmts =
+  vsep <$> traverse ppStmt stmts
+
+ppAlt :: Alt -> Either PrettyError Doc
+ppAlt = \case
+  Alt _ pat rhs Nothing -> do
+    ppat <- ppPat pat
+    prhs <- ppRhs "->" rhs
+    pure $
+      ppat <> prhs
+  Alt _ _ _ (Just binds) ->
+    Left (WhereClauseNotSupported binds)
+
+ppLiteral :: Literal -> Either PrettyError Doc
+ppLiteral = \case
+  String str ->
+    pure $ string (show str)
+  Int i ->
+    pure $ integer i
+  lit ->
+    unsupported "Literal" lit
+
+ppExp :: Exp -> Either PrettyError Doc
+ppExp = \case
+  Lit lit ->
+    ppLiteral lit
+  Var qname ->
+    pure $ ppQName qname
+  Con qname ->
+    pure $ ppQName qname
+  App f x -> do
+    pf <- ppExp f
+    px <- ppExp x
+    pure $
+      pf <+> savageParens px
+  InfixApp x qop y -> do
+    px <- ppExp x
+    py <- ppExp y
+    pure $
+      px <+> ppQOp qop <+> py
+  Let binds exp -> do
+    pbinds <- ppBinds binds
+    pexp <- ppExp exp
+    pure $
+      "let" <&>
+      "  " <> align pbinds <&>
+      "in" <&>
+      "  " <> align pexp
+  Case exp alts -> do
+    pexp <- ppExp exp
+    palts <- traverse ppAlt alts
+    pure $
+      "case" <+> pexp <+> "of" <&>
+      "  " <> align (vsep palts)
+  If i t e -> do
+    pi <- ppExp i
+    pt <- ppRhsExp t
+    pe <- ppRhsExp e
+    pure $
+      "if" <+> align pi <+> "then" <> pt <&>
+      "else" <> pe
+  LCase alts -> do
+    palts <- traverse ppAlt alts
+    pure $
+      "\\case" <&>
+      "  " <> align (vsep palts)
+  Do stmts -> do
+    pstmts <- ppStmts stmts
+    pure $
+      "do" <&> "  " <> align pstmts
+  Paren exp -> do
+    pexp <- ppExp exp
+    pure $
+      -- parens pexp
+      pexp
+  Tuple Boxed exps -> do
+    pexps <- traverse ppExp exps
+    pure $
+      parens $ hcsep pexps
+  List exps -> do
+    pexps <- traverse ppExp exps
+    pure $
+      brackets $ hcsep pexps
+  ExpTypeSig _ exp ty -> do
+    pexp <- ppExp exp
+    pty <- ppType ty
+    pure $
+      pexp <+> "::" <+> pty
+  exp ->
+    unsupported "Exp" exp
+
+ppRhsExp :: Exp ->  Either PrettyError Doc
+ppRhsExp exp =
+  case exp of
+    Do _ ->
+      hangExp exp
+    LCase _ ->
+      hangExp exp
+    _ ->
+      wrapExp exp
+
+ppRhs :: Doc -> Rhs -> Either PrettyError Doc
+ppRhs arrow = \case
+  UnGuardedRhs exp -> do
+    pexp <- ppRhsExp exp
+    pure $ " " <> arrow <> pexp
+  GuardedRhss gs ->
+    unsupported "Rhs" gs
+
+ppPat :: Pat -> Either PrettyError Doc
+ppPat = \case
+  PVar name ->
+    pure $ ppName name
+  PLit Signless lit ->
+    ppLiteral lit
+  PLit Negative lit -> do
+    plit <- ppLiteral lit
+    pure $ "(-" <> plit <> ")"
+  PApp qname args -> do
+    pargs <- traverse ppPat args
+    pure $
+      hsep (ppQName qname : pargs)
+  PBangPat pat -> do
+    ppat <- ppPat pat
+    pure $ "!" <> savageParens ppat
+  PWildCard ->
+    pure "_"
+  pat ->
+    unsupported "Pat" pat
+
+ppSig :: Maybe Type -> Either PrettyError Doc
+ppSig = \case
+  Nothing ->
+    pure mempty
+  Just ty -> do
+    pty <- ppType ty
+    pure $ " ::" <> pty
+
+ppMatch :: Match -> Either PrettyError Doc
+ppMatch = \case
+  Match _ name pats msig rhs Nothing -> do
+    ppats <- traverse ppPat pats
+    psig <- ppSig msig
+    prhs <- ppRhs "=" rhs
+    pure $
+      hsep (ppName name : ppats) <> psig <> prhs
+
+  Match _ _ _ _ _ (Just binds) ->
+    Left $ WhereClauseNotSupported binds
+
+ppActivation :: Activation -> Doc
+ppActivation = \case
+  AlwaysActive ->
+    mempty
+  ActiveFrom phase ->
+    "[" <> int phase <> "]"
+  ActiveUntil phase ->
+    "[~" <> int phase <> "]"
 
 ppDecl :: Decl -> Either PrettyError Doc
 ppDecl = \case
@@ -186,8 +448,58 @@ ppDecl = \case
         (_, Just pds) ->
           ppDataOrNew dataOrNew <+> ppName name <+> pqs <&>
           "    " <> pds
+
+  TypeSig _ names ty -> do
+    pty <- ppType ty
+    pure $
+      hcsep (fmap ppName names) <+> "::" <+> pty
+
+  FunBind matches ->
+    vsep <$> traverse ppMatch matches
+
+  PatBind _ pat rhs Nothing -> do
+    ppat <- ppPat pat
+    prhs <- ppRhs "=" rhs
+    pure $
+      ppat <> prhs
+
+  PatBind _ _ _ (Just binds) ->
+    Left (WhereClauseNotSupported binds)
+
+  -- haskell-src-exts doesn't support the INLINABLE pragma, but
+  -- that's what we want, so we hack it by using an activation
+  -- phase of -1 on the INLINE pragma.
+  InlineSig _ True (ActiveFrom (-1)) qname -> do
+    pure $
+      "{-#" <+> "INLINABLE" <+> ppQName qname <+> "#-}"
+
+  InlineSig _ inline activation qname -> do
+    let
+      inlineNo = if inline then mempty else "NO"
+    pure $
+      "{-#" <+> inlineNo <> "INLINE" <> ppActivation activation <+> ppQName qname <+> "#-}"
+
+  AnnPragma _ ann -> do
+    pann <- ppAnnotation ann
+    pure $
+      "{-# ANN" <+> pann <+> "#-}"
+
   decl ->
-    unsupported decl
+    unsupported "Decl" decl
+
+ppDeclSpacing :: Decl -> Decl -> Doc
+ppDeclSpacing x y =
+  case (x, y) of
+    (TypeSig{}, FunBind{}) ->
+      line
+    (FunBind{}, InlineSig{}) ->
+      line
+    (PatBind{}, PatBind{}) ->
+      line
+    (DataDecl{}, AnnPragma{}) ->
+      line
+    (_, _) ->
+      line <> line
 
 ppDecls :: [Decl] -> Either PrettyError Doc
 ppDecls = \case
@@ -196,13 +508,8 @@ ppDecls = \case
   (d:ds) -> do
     pd <- ppDecl d
     pds <- traverse ppDecl ds
-    pure $
-      foldl (\x y -> x <> line <> line <> y) pd pds
-
-ppExp :: Exp -> Either PrettyError Doc
-ppExp = \case
-  exp ->
-    unsupported exp
+    pure . snd $
+      foldl (\(x, px) (y, py) -> (y, px <> ppDeclSpacing x y <> py)) (d, pd) (List.zip ds pds)
 
 ppAnnotation :: Annotation -> Either PrettyError Doc
 ppAnnotation = \case
@@ -280,8 +587,21 @@ ppImportSpec = \case
     ppNamespace ns <+> ppName name
   IThingAll name ->
     ppName name <> "(..)"
-  IThingWith name names ->
-    ppName name <> "(" <> hcsep (fmap ppCName names) <> ")"
+  IThingWith name cnames ->
+    ppName name <> "(" <> hcsep (fmap ppCName cnames) <> ")"
+
+ppExportSpec :: ExportSpec -> Doc
+ppExportSpec = \case
+  EVar qname ->
+    ppQName qname
+  EAbs ns qname ->
+    ppNamespace ns <+> ppQName qname
+  EThingAll qname ->
+    ppQName qname <> "(..)"
+  EThingWith qname cnames ->
+    ppQName qname <> "(" <> hcsep (fmap ppCName cnames) <> ")"
+  EModuleContents modName ->
+    "module" <+> ppModuleName modName
 
 ppImportSpecs :: (Bool, [ImportSpec]) -> Doc
 ppImportSpecs (hide, specs) =
@@ -319,14 +639,25 @@ ppImports =
   List.groupBy ((==) `on` importRootModule) .
   List.sortBy (compare `on` importModule)
 
+ppExports :: Maybe [ExportSpec] -> Doc
+ppExports = \case
+  Nothing ->
+    mempty
+  Just [] ->
+    "(" <&>
+    "  )"
+  Just exports ->
+    "(" <&>
+    "  " <> align (vcsep (fmap ppExportSpec exports) <&> ")")
+
 ppModule :: Module -> Either PrettyError Doc
 ppModule = \case
-  Module _ name pragmas Nothing Nothing imports decls -> do
+  Module _ name pragmas Nothing mexports imports decls -> do
     ppragmas <- traverse ppPragma pragmas
     pdecls <- ppDecls decls
     pure $ vsep
       [ vsep ppragmas
-      , "module" <+> ppModuleName name <+> "where"
+      , "module" <+> ppModuleName name <+> ppExports mexports <+> "where"
       , mempty
       , ppImports imports
       , mempty
@@ -335,7 +666,7 @@ ppModule = \case
       ]
 
   Module _ _ _ _ (Just exports) _ _ ->
-    unsupported exports
+    unsupported "Module" exports
 
   Module _ _ _ (Just warningText) _ _ _ ->
-    unsupported warningText
+    unsupported "Module" warningText

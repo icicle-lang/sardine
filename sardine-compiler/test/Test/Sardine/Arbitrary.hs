@@ -30,6 +30,8 @@ import           Language.Thrift.Types (Field(..), FieldRequiredness(..))
 
 import           P hiding (Enum)
 
+import           Sardine.Compiler.Util (valuesOfEnum)
+
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
@@ -66,11 +68,32 @@ genEnumDef name = do
   value <- arbitrary
   return (EnumDef name value [] Nothing X)
 
+uniqEnumDefs :: [EnumDef a] -> [EnumDef a]
+uniqEnumDefs defs =
+  let
+    values =
+      valuesOfEnum defs
+
+    defs' =
+      fmap snd $
+      List.nubBy ((==) `on` fst) $
+      List.zip values defs
+
+    values' =
+      valuesOfEnum defs'
+  in
+    if values == values' then
+      defs
+    else
+      -- removing a def can change the value of
+      -- subsequent defs, so run to a fixed point
+      uniqEnumDefs defs'
+
 genEnum :: Name -> Gen (Enum X)
 genEnum name = do
   vnames <- genNames cooking
   values <- traverse genEnumDef vnames
-  return (Enum name values [] Nothing X)
+  return (Enum name (uniqEnumDefs values) [] Nothing X)
 
 genTypeReference :: [Name] -> Gen (TypeReference X)
 genTypeReference env = do
@@ -90,9 +113,9 @@ genTypeReference env = do
     , ListType <$> genTypeReference env <*> pure [] <*> pure X
     ]
 
-genField :: [Name] -> Name -> Maybe (NonNegative Int) -> Gen (Field X)
-genField env name nnfid = do
-  let fid = fmap (fromIntegral . getNonNegative) nnfid
+genField :: [Name] -> Name -> Maybe (Positive Int) -> Gen (Field X)
+genField env name pfid = do
+  let fid = fmap (fromIntegral . getPositive) pfid
   required <- elements [Nothing, Just Required, Just Optional]
   ftype <- genTypeReference (filter (/= name) env)
   return (Field fid required ftype name Nothing [] Nothing X)
@@ -100,9 +123,8 @@ genField env name nnfid = do
 genFields :: [Name] -> Gen [Field X]
 genFields env = do
   fnames <- genNames viruses
-  fids <- List.take (length fnames) . List.nub <$> infiniteListOf arbitrary
-  mfids <- traverse (\fid -> elements [Nothing, Just fid]) fids
-  zipWithM (genField env) fnames mfids
+  fids <- fmap Just . List.take (length fnames) . List.nub <$> infiniteListOf arbitrary
+  zipWithM (genField env) fnames fids
 
 genStruct :: [Name] -> Name -> Gen (Struct X)
 genStruct env name = do
@@ -139,7 +161,8 @@ shrinkEnumDef = \case
 shrinkEnum :: Enum X -> [Enum X]
 shrinkEnum = \case
   Enum name values _ _ X ->
-    [ Enum name values' [] Nothing X | values' <- shrinkList shrinkEnumDef values ]
+    [ Enum name (uniqEnumDefs values') [] Nothing X
+    | values' <- shrinkList shrinkEnumDef values ]
 
 shrinkRequired :: Maybe FieldRequiredness -> [Maybe FieldRequiredness]
 shrinkRequired = \case
