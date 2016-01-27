@@ -13,8 +13,10 @@ description:           ambiata-sardine-runtime
 library
   build-depends:
                       base                            >= 3          && < 5
-                    , ambiata-p
+                    , bytestring                      == 0.10.*
+                    , hybrid-vectors                  == 0.2.*
                     , text                            == 1.2.*
+                    , vector                          == 0.11.*
 
   ghc-options:
                     -Wall
@@ -24,6 +26,8 @@ library
 
   exposed-modules:
                     Sardine.Runtime
+                    Sardine.Runtime.Decode
+                    Sardine.Runtime.Base
 
 test-suite test
   type:
