@@ -9,7 +9,8 @@ module Test.Sardine.Arbitrary (
    , X(..)
    ) where
 
-import           Data.Generics.Uniplate.Data (universeBi, transformBi, rewriteBi)
+import           Control.Lens.Plated (universeOnOf, transformOnOf, rewriteOnOf)
+import           Data.Data.Lens (biplate, template)
 
 import           Data.Data (Data)
 import           Data.Set (Set)
@@ -249,7 +250,7 @@ nameOfType = \case
 
 namesOfTypes :: Program X -> Set Text
 namesOfTypes =
-  Set.fromList . fmap nameOfType . universeBi
+  Set.fromList . fmap nameOfType . universeOnOf biplate template
 
 hasValidType' :: Set Text -> TypeReference X -> Bool
 hasValidType' names = \case
@@ -310,7 +311,7 @@ fixupDefinitions =
 transformEq :: (Data to, Data from, Eq from) => (to -> to) -> from -> Maybe from
 transformEq t p =
   let
-    p' = transformBi t p
+    p' = transformOnOf biplate template t p
   in
     if p /= p' then
       Just p'
@@ -319,6 +320,6 @@ transformEq t p =
 
 fixupProgram :: Program X -> Program X
 fixupProgram =
-  rewriteBi $ \p ->
+  rewriteOnOf biplate template $ \p ->
     transformEq (fixupFields (namesOfTypes p)) p <|>
     transformEq fixupDefinitions p
