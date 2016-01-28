@@ -4,5 +4,7 @@
   version = 1
 
 [build.dist]
+  MAFIA_HAPPY = "true"
 
 [build.branches]
+  MAFIA_HAPPY = "true"
