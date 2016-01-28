@@ -17,12 +17,12 @@ import qualified Data.Text.IO as T
 import           Disorder.Core.IO (testIO)
 import           Disorder.Either (testEitherT)
 
-import           P
+import           P hiding (mod)
 
-import           Sardine.Compiler.Data
+import           Sardine.Compiler.Module
 import           Sardine.Compiler.Error
-import           Sardine.Compiler.Preamble
-import           Sardine.Compiler.Pretty (Doc, line)
+import           Sardine.Haskell.Pretty
+import           Sardine.Pretty (Doc, line)
 
 import           System.Directory (createDirectoryIfMissing, removeDirectoryRecursive, copyFile)
 import           System.Exit (ExitCode(..))
@@ -45,19 +45,18 @@ import           X.Control.Monad.Trans.Either (hoistEither, left)
 
 prop_no_compile_errors (ThriftIDL p) =
   testIO . testEitherT (T.pack . show) $ do
-    src <- firstT CompilerError . hoistEither $ do
-      psrc <- preambleOfProgram "generated.thrift" p
-      dsrc <- dataOfProgram p
-      return (psrc <> line <> line <> dsrc)
+    mod <- firstT CompilerError . hoistEither $ moduleOfProgram "generated.thrift" p
+    src <- firstT PrettyError . hoistEither $ ppModule mod
     dir <- createEnv
     liftIO $ createDirectoryIfMissing False (dir </> "src")
-    liftIO $ T.writeFile (dir </> "src/Generated.hs") (T.pack $ show src)
+    liftIO $ T.writeFile (dir </> "src/Generated.hs") (T.pack (show src))
     mafia dir src
     return True
 
 data TestError =
     MafiaFailed Int Doc
   | CompilerError (CompilerError X)
+  | PrettyError PrettyError
     deriving (Show)
 
 mafia :: FilePath -> Doc -> EitherT TestError IO ()
