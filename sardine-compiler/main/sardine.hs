@@ -1,10 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 import           BuildInfo_ambiata_sardine_compiler
 
 import           Control.Monad.IO.Class (liftIO)
+
+import           Data.Text (Text)
+import qualified Data.Text.IO as T
 
 import           Language.Thrift.Parser.Trifecta (thriftIDL)
 
@@ -21,6 +25,7 @@ import           System.Exit (exitSuccess)
 
 import           Text.Trifecta.Parser (parseFromFileEx)
 import           Text.Trifecta.Result (Result(..))
+import           Text.Shakespeare.Text (sbt)
 
 import           X.Control.Monad.Trans.Either (EitherT, left, hoistEither)
 import           X.Control.Monad.Trans.Either.Exit (orDie)
@@ -73,4 +78,31 @@ sardineCompile path = do
         moduleOfProgram path thrift
       code <- firstT SardinePrettyError . hoistEither $
         ppModule haskell
+      liftIO $ T.putStr header
       liftIO $ print code
+
+-- generated using:
+--   cowsay -f dragon "<msg>"
+header :: Text
+header =
+  [sbt|--   ______________________________________
+      |--  / This is generated code, only edit if \
+      |--  \ you're feeling lucky.                /
+      |--   --------------------------------------
+      |--        \                    / \  //\
+      |--         \    |\___/|      /   \//  \\
+      |--              /0  0  \__  /    //  | \ \
+      |--             /     /  \/_/    //   |  \  \
+      |--             @_^_@'/   \/_   //    |   \   \
+      |--             //_^_/     \/_ //     |    \    \
+      |--          ( //) |        \///      |     \     \
+      |--        ( / /) _|_ /   )  //       |      \     _\
+      |--      ( // /) '/,_ _ _/  ( ; -.    |    _ _\.-~        .-~~~^-.
+      |--    (( / / )) ,-{        _      `-.|.-~-.           .~         `.
+      |--   (( // / ))  '/\      /                 ~-. _ .-~      .-~^-.  \
+      |--   (( /// ))      `.   {            }                   /      \  \
+      |--    (( / ))     .----~-.\        \-'                 .~         \  `. \^-.
+      |--               ///.----..>        \             _ -~             `.  ^-`  ^-_
+      |--                 ///-._ _ _ _ _ _ _}^ - - - - ~                     ~-- ,.-~
+      |--                                                                    /.-~
+      |]
