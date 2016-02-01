@@ -3,6 +3,7 @@ sardine
 
 Thrift IDL compiler and runtime for encoding/decoding thrift compact format.
 
+![sardines](img/sardines.jpg)
 
 ### Usage
 
