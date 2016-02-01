@@ -9,6 +9,7 @@ module Sardine.Pretty (
   , hcsep
   , vcsep
   , savageParens
+  , fromDoc
   ) where
 
 import           Data.Char (isSpace)
@@ -52,3 +53,7 @@ savageParens doc =
     "(" <> doc <> ")"
   else
     doc
+
+fromDoc :: Doc -> Text
+fromDoc =
+  T.unlines . fmap T.stripEnd . T.lines . T.pack . show

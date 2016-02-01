@@ -17,6 +17,7 @@ import           P
 import           Sardine.Compiler
 import           Sardine.Haskell.Pretty
 import           Sardine.Error
+import           Sardine.Pretty
 
 import           System.IO (BufferMode(..), hSetBuffering)
 import           System.IO (FilePath)
@@ -79,7 +80,7 @@ sardineCompile path = do
       code <- firstT SardinePrettyError . hoistEither $
         ppModule haskell
       liftIO $ T.putStr header
-      liftIO $ print code
+      liftIO $ T.putStr $ fromDoc code
 
 -- generated using:
 --   cowsay -f dragon "<msg>"
