@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -19,8 +20,9 @@ import           Disorder.Either (testEitherT)
 
 import           P hiding (mod)
 
-import           Sardine.Compiler.Module
 import           Sardine.Compiler.Error
+import           Sardine.Compiler.Module
+import           Sardine.Compiler.Monad
 import           Sardine.Haskell.Pretty
 import           Sardine.Pretty (Doc, line)
 
@@ -44,9 +46,15 @@ import           X.Control.Monad.Trans.Either (hoistEither, left)
 
 
 prop_no_compile_errors (ThriftIDL p) =
-  testIO . testEitherT (T.pack . show) $ do
-    mod <- firstT CompilerError . hoistEither $ moduleOfProgram "generated.thrift" p
-    src <- firstT PrettyError . hoistEither $ ppModule mod
+  testIO . testEitherT (\x -> "\n" <> renderTestError x) $ do
+    mod <- firstT CompilerError . hoistEither . runCompiler $
+      moduleOfProgram "generated.thrift" p
+    src <- firstT PrettyError . hoistEither $
+      ppModule mod
+
+    -- Uncomment to debug tests
+    -- liftIO $ T.putStrLn . T.pack $ show src
+
     dir <- createEnv
     liftIO $ createDirectoryIfMissing False (dir </> "src")
     liftIO $ T.writeFile (dir </> "src/Generated.hs") (T.pack (show src))
@@ -58,6 +66,16 @@ data TestError =
   | CompilerError (CompilerError X)
   | PrettyError PrettyError
     deriving (Show)
+
+renderTestError :: TestError -> Text
+renderTestError = \case
+  MafiaFailed code doc ->
+    "Mafia failed (exit code: " <> T.pack (show code) <> ") when compiling the following code:" <>
+    T.pack (show doc)
+  PrettyError perr ->
+    renderPrettyError perr
+  CompilerError cerr ->
+    "Failed to compile Thrift IDL: " <> T.pack (show cerr)
 
 mafia :: FilePath -> Doc -> EitherT TestError IO ()
 mafia dir src = do
@@ -143,6 +161,7 @@ cabalFile =
       |                    , ambiata-sardine-runtime
       |                    , bytestring                      == 0.10.*
       |                    , containers                      == 0.5.*
+      |                    , hybrid-vectors                  == 0.2.*
       |                    , text                            == 1.2.*
       |                    , vector                          == 0.11.*
       |]
@@ -151,4 +170,4 @@ return []
 tests :: IO Bool
 tests =
   deleteEnvAfterTests $
-    $forAllProperties $ quickCheckWithResult (stdArgs { maxSuccess = 20, maxSize = 10 })
+    $forAllProperties $ quickCheckWithResult (stdArgs { maxSuccess = 30, maxSize = 20 })

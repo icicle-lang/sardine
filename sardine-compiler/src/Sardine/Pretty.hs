@@ -7,7 +7,9 @@ module Sardine.Pretty (
   , (<&&>)
   , text
   , hcsep
+  , vcsep
   , savageParens
+  , fromDoc
   ) where
 
 import           Data.Char (isSpace)
@@ -16,7 +18,7 @@ import qualified Data.Text as T
 
 import           P hiding (Const(..), Enum)
 
-import           Text.PrettyPrint.ANSI.Leijen as X hiding ((<>), (<$>), (<$$>), empty, text)
+import           Text.PrettyPrint.ANSI.Leijen as X hiding ((<>), (<$>), (<$$>), empty, text, hang)
 import qualified Text.PrettyPrint.ANSI.Leijen as Leijen
 
 
@@ -36,6 +38,14 @@ hcsep :: [Doc] -> Doc
 hcsep =
   hcat . punctuate ", "
 
+vcsep :: [Doc] -> Doc
+vcsep = \case
+  [] ->
+    mempty
+  d : ds ->
+    "  " <> d <&>
+    vsep (fmap (\x -> ", " <> x) ds)
+
 savageParens :: Doc -> Doc
 savageParens doc =
   -- totally savage way to determine if we need parens, lol
@@ -43,3 +53,7 @@ savageParens doc =
     "(" <> doc <> ")"
   else
     doc
+
+fromDoc :: Doc -> Text
+fromDoc =
+  T.unlines . fmap T.stripEnd . T.lines . T.pack . show
