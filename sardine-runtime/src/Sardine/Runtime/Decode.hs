@@ -37,17 +37,11 @@ module Sardine.Runtime.Decode (
   , decodeVarInt32
   , decodeVarInt64
 
-  -- ** Zig-zag decoding
-  , unZigZag16
-  , unZigZag32
-  , unZigZag64
-
   -- ** Failure
   , DecodeError(..)
   , decodeFail
 
   -- * Thrift
-  , TypeId(..)
   , decodeBytes
   , decodeList
   , decodeMap
@@ -64,7 +58,6 @@ import           Control.Exception (Exception, try, throwIO)
 import           Control.Monad (Monad(..), replicateM_)
 
 import           Data.Bits (Bits(..))
-import           Data.Bool (otherwise)
 import qualified Data.ByteString as Strict
 import           Data.ByteString.Internal (ByteString(..))
 import qualified Data.ByteString.Internal as ByteString
@@ -96,11 +89,12 @@ import           GHC.Storable (readFloatOffPtr, readDoubleOffPtr)
 import           Prelude (Num(..), Float, Double, ($!), fromIntegral)
 
 import           Sardine.Runtime.Base
+import           Sardine.Runtime.Data
+import           Sardine.Runtime.ZigZag
 
 import           System.IO (IO)
 
 import           Text.Show (Show(..))
-import           Text.Read (Read(..))
 
 ------------------------------------------------------------------------
 
@@ -138,12 +132,15 @@ unDecodeResult (DecodeResult val _) =
   val
 {-# INLINE unDecodeResult #-}
 
-data DecodePtr =
-  DecodePtr !(Ptr Word8) !(BytesRequired -> DecodeState -> IO DecodeState)
+data DecodeBuffer =
+  DecodeBuffer {
+      _decodePtr :: !(Ptr Word8)
+    , _decodePull :: !(BytesRequired -> DecodeState -> IO DecodeState)
+    }
 
 newtype Decode a =
   Decode {
-      runDecode :: DecodePtr -> DecodeState -> IO (DecodeResult a)
+      runDecode :: DecodeBuffer -> DecodeState -> IO (DecodeResult a)
     }
 
 unsafeIO :: IO a -> Decode a
@@ -187,13 +184,13 @@ instance Monad Decode where
 ------------------------------------------------------------------------
 -- ByteString
 
-decodeStrictByteString :: Strict.ByteString -> Decode a -> Either DecodeError a
-decodeStrictByteString (PS !fptr !off0 !len0) !decode =
-  unsafeLocalState . withForeignPtr fptr $! \ptr -> do
+decodeStrictByteString :: Decode a -> Strict.ByteString -> Either DecodeError a
+decodeStrictByteString !decode (PS !fptr !off0 !len0) =
+  unsafeLocalState . withForeignPtr fptr $! \ !ptr -> do
     let
       norefill !_ !s = return s
       !ds = DecodeState off0 len0
-      !dp = DecodePtr (castPtr ptr) norefill
+      !dp = DecodeBuffer (castPtr ptr) norefill
     try $! unDecodeResult <$!> runDecode decode dp ds
 {-# INLINE decodeStrictByteString #-}
 
@@ -208,7 +205,7 @@ decodeFail !err =
 
 decodeAny :: Length -> (Ptr a -> Offset -> IO a) -> Decode a
 decodeAny !size !readOffPtr =
-  Decode $! \(DecodePtr dpPtr dpRefill) (DecodeState off0 len0) -> do
+  Decode $! \(DecodeBuffer dpPtr dpRefill) (DecodeState off0 len0) -> do
     let
       !off1 = off0 + size
     if off1 <= len0 then do
@@ -285,24 +282,6 @@ decodeFloat64le =
 {-# INLINE decodeFloat64le #-}
 
 ------------------------------------------------------------------------
--- Zig-Zag Encoding
-
-unZigZag16 :: Word16 -> Int16
-unZigZag16 !n =
-  fromIntegral $! (n `shiftR` 1) `xor` negate (n .&. 0x1)
-{-# INLINE unZigZag16 #-}
-
-unZigZag32 :: Word32 -> Int32
-unZigZag32 !n =
-  fromIntegral $! (n `shiftR` 1) `xor` negate (n .&. 0x1)
-{-# INLINE unZigZag32 #-}
-
-unZigZag64 :: Word64 -> Int64
-unZigZag64 !n =
-  fromIntegral $! (n `shiftR` 1) `xor` negate (n .&. 0x1)
-{-# INLINE unZigZag64 #-}
-
-------------------------------------------------------------------------
 -- VarInt
 
 step :: (Bits a, Num a) => Int -> (a -> Decode a) -> a -> Decode a
@@ -369,16 +348,11 @@ decodeVarInt64 =
 ------------------------------------------------------------------------
 -- Thrift
 
-newtype TypeId =
-  TypeId {
-      unTypeId :: Word8
-    } deriving (Eq, Ord, Read, Show, Data, Typeable)
-
 decodeBytes :: Decode Strict.ByteString
 decodeBytes = do
   !len <- fromIntegral <$!> decodeVarWord32
-  decodeAny len $! \dptr off ->
-    ByteString.create len $! \bptr ->
+  decodeAny len $! \ !dptr !off ->
+    ByteString.create len $! \ !bptr ->
       ByteString.memcpy bptr (dptr `plusPtr` off) len
 {-# INLINE decodeBytes #-}
 
@@ -396,7 +370,7 @@ decodeList !checkType !decodeElem = do
 
   !size <-
     if lsize == 0xF then
-      fromIntegral <$!> decodeVarInt32
+      fromIntegral <$!> decodeVarWord32
     else
       return $! fromIntegral lsize
 
@@ -424,7 +398,7 @@ decodeMap ::
   Decode v ->
   Decode (Hybrid.Vector vk vv (k, v))
 decodeMap !checkKeyType !checkValType !decodeKey !decodeVal = do
-  !size <- fromIntegral <$!> decodeVarInt32
+  !size <- fromIntegral <$!> decodeVarWord32
   if size == 0 then
     return Hybrid.empty
   else do
@@ -544,30 +518,3 @@ skipStruct =
   in
     loop 0
 {-# INLINE skipStruct #-}
-
-------------------------------------------------------------------------
--- Utils
-
-replicateIx_ :: Monad m => Int -> (Int -> m ()) -> m ()
-replicateIx_ n0 body0 =
-  let
-    loop !body !n !ix
-      -- unrolled 4 times
-      | ix + 4 <= n = do
-        !_ <- body (ix+0)
-        !_ <- body (ix+1)
-        !_ <- body (ix+2)
-        !_ <- body (ix+3)
-        loop body n (ix+4)
-
-      -- remaining elems
-      | ix + 1 <= n = do
-        !_ <- body (ix+0)
-        loop body n (ix+1)
-
-      -- finished
-      | otherwise =
-        return ()
-  in
-    loop body0 n0 0
-{-# INLINE replicateIx_ #-}
