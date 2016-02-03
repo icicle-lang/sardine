@@ -28,6 +28,10 @@ data CompilerError a =
   | FieldIdTooLarge !(Field a) !Integer
   | EnumIsUninhabited !(Enum a)
   | UnionIsUninhabited !(Union a)
+  | UnionFieldsCannotBeOptional !(Union a) !(Field a)
+  | TypeNotFound !Text !a
+  | CannotShrinkBounds !Integer !Integer
+  | CannotMakeBounded
     deriving (Eq, Ord, Show)
 
 renderCompilerError :: Show a => CompilerError a -> Text

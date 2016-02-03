@@ -40,7 +40,7 @@ defaultOfTypeReference = \case
   BinaryType _ _ ->
     pure [hs| B.empty |]
   SListType _ annot ->
-    hoistError (SListDeprecated annot)
+    hoistCE (SListDeprecated annot)
   BoolType _ _ ->
     pure [hs| False |]
   ByteType _ _ ->
@@ -88,7 +88,7 @@ defaultOfUnion union = do
     funT = typeOfUnion union
   case union ^. fields of
     [] ->
-      hoistError $ UnionIsUninhabited union
+      hoistCE $ UnionIsUninhabited union
     (field:_) -> do
       fdef <- defaultOfFieldType field
       pure . inlineFunDT funT funName [] . doE' $
@@ -101,7 +101,7 @@ defaultOfEnum enum = do
     funT = typeOfEnum enum
   case enum ^. values of
     [] ->
-      hoistError $ EnumIsUninhabited enum
+      hoistCE $ EnumIsUninhabited enum
     (val:_) -> do
       pure . inlineFunDT funT funName [] . doE' $
         conOfEnumAlt enum val
@@ -109,7 +109,7 @@ defaultOfEnum enum = do
 defaultOfType :: Thrift.Type a -> Compiler a [Decl]
 defaultOfType = \case
   TypedefType x ->
-    hoistError (TypedefNotSupported x)
+    hoistCE (TypedefNotSupported x)
   EnumType x ->
     defaultOfEnum x
   StructType x ->
@@ -117,15 +117,15 @@ defaultOfType = \case
   UnionType x ->
     defaultOfUnion x
   SenumType x ->
-    hoistError (SenumDeprecated x)
+    hoistCE (SenumDeprecated x)
   ExceptionType x ->
-    hoistError (ExceptionNotSupported x)
+    hoistCE (ExceptionNotSupported x)
 
 defaultOfDefinition :: Definition a -> Compiler a [Decl]
 defaultOfDefinition = \case
   ConstDefinition x ->
-    hoistError (ConstNotSupported x)
+    hoistCE (ConstNotSupported x)
   ServiceDefinition x ->
-    hoistError (ServiceNotSupported x)
+    hoistCE (ServiceNotSupported x)
   TypeDefinition x ->
     defaultOfType x
