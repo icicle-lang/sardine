@@ -14,20 +14,24 @@ library
   build-depends:
                       base                            >= 3          && < 5
                     , bytestring                      == 0.10.*
+                    , ghc-prim                        >= 0.3        && < 0.5
                     , hybrid-vectors                  == 0.2.*
                     , text                            == 1.2.*
                     , vector                          == 0.11.*
 
   ghc-options:
-                    -Wall
+                    -Wall -O2
 
   hs-source-dirs:
                     src
 
   exposed-modules:
                     Sardine.Runtime
-                    Sardine.Runtime.Decode
                     Sardine.Runtime.Base
+                    Sardine.Runtime.Data
+                    Sardine.Runtime.Decode
+                    Sardine.Runtime.Encode
+                    Sardine.Runtime.ZigZag
 
 test-suite test
   type:
@@ -48,5 +52,8 @@ test-suite test
                     , ambiata-disorder-core
                     , ambiata-disorder-corpus
                     , ambiata-p
+                    , bytestring                      == 0.10.*
+                    , hybrid-vectors                  == 0.2.*
                     , QuickCheck                      >= 2.8.2      && < 2.9
                     , quickcheck-instances            == 0.3.*
+                    , vector                          == 0.11.*
