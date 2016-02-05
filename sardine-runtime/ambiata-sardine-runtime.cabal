@@ -13,11 +13,16 @@ description:           ambiata-sardine-runtime
 library
   build-depends:
                       base                            >= 3          && < 5
+                    , bifunctors                      >= 4.2        && < 5.3
                     , bytestring                      == 0.10.*
+                    , contravariant                   >= 1.0        && < 1.5
                     , ghc-prim                        >= 0.3        && < 0.5
                     , hybrid-vectors                  == 0.2.*
+                    , primitive                       == 0.6
                     , text                            == 1.2.*
+                    , transformers                    >= 0.3        && < 0.6
                     , vector                          == 0.11.*
+                    , void                            >= 0.5        && < 0.8
 
   ghc-options:
                     -Wall -O2
@@ -27,10 +32,11 @@ library
 
   exposed-modules:
                     Sardine.Runtime
-                    Sardine.Runtime.Base
-                    Sardine.Runtime.Data
-                    Sardine.Runtime.Decode
-                    Sardine.Runtime.Encode
+                    Sardine.Runtime.Buffer
+                    Sardine.Runtime.Internal
+                    Sardine.Runtime.Primitive
+                    Sardine.Runtime.Thrift
+                    Sardine.Runtime.VarInt
                     Sardine.Runtime.ZigZag
 
 test-suite test
@@ -56,4 +62,5 @@ test-suite test
                     , hybrid-vectors                  == 0.2.*
                     , QuickCheck                      >= 2.8.2      && < 2.9
                     , quickcheck-instances            == 0.3.*
+                    , text                            == 1.2.*
                     , vector                          == 0.11.*
