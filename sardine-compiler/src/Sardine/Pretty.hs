@@ -48,11 +48,14 @@ vcsep = \case
 
 savageParens :: Doc -> Doc
 savageParens doc =
-  -- totally savage way to determine if we need parens, lol
-  if any isSpace (show doc) then
-    "(" <> doc <> ")"
-  else
-    doc
+  let
+    str = show doc
+  in
+    -- totally savage way to determine if we need parens, lol
+    if any isSpace str || head str == Just '-' then
+      "(" <> doc <> ")"
+    else
+      doc
 
 fromDoc :: Doc -> Text
 fromDoc =

@@ -10,8 +10,9 @@ module Test.Sardine.Compiler.Data where
 import           Control.Exception (finally)
 import           Control.Monad.IO.Class (MonadIO(..))
 
-import           Data.Text (Text)
 import           Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import qualified Data.List as List
+import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -20,11 +21,12 @@ import           Disorder.Either (testEitherT)
 
 import           P hiding (mod)
 
+import           Sardine.Compiler.Analysis
 import           Sardine.Compiler.Error
 import           Sardine.Compiler.Module
 import           Sardine.Compiler.Monad
 import           Sardine.Haskell.Pretty
-import           Sardine.Pretty (Doc, line)
+import           Sardine.Pretty (Doc)
 
 import           System.Directory (createDirectoryIfMissing, removeDirectoryRecursive, copyFile)
 import           System.Exit (ExitCode(..))
@@ -47,7 +49,9 @@ import           X.Control.Monad.Trans.Either (hoistEither, left)
 
 prop_no_compile_errors (ThriftIDL p) =
   testIO . testEitherT (\x -> "\n" <> renderTestError x) $ do
-    mod <- firstT CompilerError . hoistEither . runCompiler $
+    env <- firstT CompilerError . hoistEither $
+      typeEnvOfProgram p
+    mod <- firstT CompilerError . hoistEither . runCompiler env $
       moduleOfProgram "generated.thrift" p
     src <- firstT PrettyError . hoistEither $
       ppModule mod
@@ -59,6 +63,7 @@ prop_no_compile_errors (ThriftIDL p) =
     liftIO $ createDirectoryIfMissing False (dir </> "src")
     liftIO $ T.writeFile (dir </> "src/Generated.hs") (T.pack (show src))
     mafia dir src
+
     return True
 
 data TestError =
@@ -70,8 +75,12 @@ data TestError =
 renderTestError :: TestError -> Text
 renderTestError = \case
   MafiaFailed code doc ->
-    "Mafia failed (exit code: " <> T.pack (show code) <> ") when compiling the following code:" <>
-    T.pack (show doc)
+    "Mafia failed (exit code: " <> T.pack (show code) <> ") when compiling the following code:\n" <>
+    let
+      ns = fmap ((<> "  ") . T.justifyRight 4 ' ' . T.pack . show) ([1..] :: [Int])
+      xs = T.lines . T.pack $ show doc
+    in
+      T.unlines $ List.zipWith (<>) ns xs
   PrettyError perr ->
     renderPrettyError perr
   CompilerError cerr ->
@@ -84,7 +93,7 @@ mafia dir src = do
   result <- liftIO $ waitForProcess h
   case result of
     ExitFailure code ->
-      left $ MafiaFailed code (line <> src)
+      left $ MafiaFailed code src
     ExitSuccess ->
       return ()
 
@@ -160,14 +169,17 @@ cabalFile =
       |                      base                            >= 3          && < 5
       |                    , ambiata-sardine-runtime
       |                    , bytestring                      == 0.10.*
+      |                    , bifunctors                      >= 4.2        && < 5.3
+      |                    , contravariant                   >= 1.0        && < 1.5
       |                    , containers                      == 0.5.*
       |                    , hybrid-vectors                  == 0.2.*
       |                    , text                            == 1.2.*
       |                    , vector                          == 0.11.*
+      |                    , void                            >= 0.5        && < 0.8
       |]
 
 return []
 tests :: IO Bool
 tests =
   deleteEnvAfterTests $
-    $forAllProperties $ quickCheckWithResult (stdArgs { maxSuccess = 30, maxSize = 20 })
+    $forAllProperties $ quickCheckWithResult (stdArgs { maxSuccess = 30, maxSize = 20 }) -- . noShrinking

@@ -75,7 +75,9 @@ sardineCompile path = do
     Failure doc ->
       left $ SardineParserError doc
     Success thrift -> do
-      haskell <- firstT SardineCompilerError . hoistEither . runCompiler $
+      env <- firstT SardineCompilerError . hoistEither $
+        typeEnvOfProgram thrift
+      haskell <- firstT SardineCompilerError . hoistEither . runCompiler env $
         moduleOfProgram path thrift
       code <- firstT SardinePrettyError . hoistEither $
         ppModule haskell

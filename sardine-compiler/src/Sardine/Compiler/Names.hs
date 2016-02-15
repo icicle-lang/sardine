@@ -7,27 +7,35 @@ module Sardine.Compiler.Names (
   , defaultE
   , decodeT
   , decodeE
+  , encodeT
+  , encodeE
 
   , nameOfStruct
   , typeOfStruct
   , conOfStruct
+  , patOfStruct
   , nameOfStructDefault
   , nameOfStructDecode
+  , nameOfStructEncode
   , nameOfStructField
 
   , nameOfEnum
   , typeOfEnum
   , nameOfEnumDefault
   , nameOfEnumDecode
+  , nameOfEnumEncode
   , nameOfEnumAlt
   , conOfEnumAlt
+  , patOfEnumAlt
 
   , nameOfUnion
   , typeOfUnion
   , nameOfUnionDefault
   , nameOfUnionDecode
+  , nameOfUnionEncode
   , nameOfUnionAlt
   , conOfUnionAlt
+  , patOfUnionAlt
   ) where
 
 import           Control.Lens ((^.))
@@ -78,7 +86,7 @@ nameOfDefaultN =
 
 decodeT :: Haskell.Type -> Haskell.Type
 decodeT ty =
-  conT "Decode" `appT` ty
+  conT "Decode" `appT` conT "ThriftError" `appT` ty
 
 decodeE :: Text -> Haskell.Exp
 decodeE =
@@ -87,6 +95,18 @@ decodeE =
 nameOfDecodeN :: Haskell.Name -> Haskell.Name
 nameOfDecodeN =
   withPrefix "decode"
+
+encodeT :: Haskell.Type -> Haskell.Type
+encodeT ty =
+  conT "Encode" `appT` ty
+
+encodeE :: Text -> Haskell.Exp
+encodeE =
+  Var . UnQual . nameOfEncodeN . conN
+
+nameOfEncodeN :: Haskell.Name -> Haskell.Name
+nameOfEncodeN =
+  withPrefix "encode"
 
 --------------------------------------------------------------------------------
 
@@ -102,6 +122,10 @@ conOfStruct :: Struct a -> Haskell.Exp
 conOfStruct struct =
   Con . UnQual $ nameOfStruct struct
 
+patOfStruct :: Struct a -> [Haskell.Pat] -> Haskell.Pat
+patOfStruct struct pats =
+  PApp (UnQual $ nameOfStruct struct) pats
+
 nameOfStructDefault :: Struct a -> Haskell.Name
 nameOfStructDefault =
   nameOfDefaultN . nameOfStruct
@@ -109,6 +133,10 @@ nameOfStructDefault =
 nameOfStructDecode :: Struct a -> Haskell.Name
 nameOfStructDecode =
   nameOfDecodeN . nameOfStruct
+
+nameOfStructEncode :: Struct a -> Haskell.Name
+nameOfStructEncode =
+  nameOfEncodeN . nameOfStruct
 
 nameOfStructField :: Struct a -> Field a -> Haskell.Name
 nameOfStructField struct field =
@@ -132,6 +160,10 @@ nameOfEnumDecode :: Enum a -> Haskell.Name
 nameOfEnumDecode =
   nameOfDecodeN . nameOfEnum
 
+nameOfEnumEncode :: Enum a -> Haskell.Name
+nameOfEnumEncode =
+  nameOfEncodeN . nameOfEnum
+
 nameOfEnumAlt :: Enum a -> EnumDef a -> Haskell.Name
 nameOfEnumAlt enum def =
   nameOfAlt (enum ^. name) (def ^. name)
@@ -139,6 +171,10 @@ nameOfEnumAlt enum def =
 conOfEnumAlt :: Enum a -> EnumDef a -> Haskell.Exp
 conOfEnumAlt enum def =
   Con . UnQual $ nameOfEnumAlt enum def
+
+patOfEnumAlt :: Enum a -> EnumDef a -> Haskell.Pat
+patOfEnumAlt enum def =
+  PApp (UnQual $ nameOfEnumAlt enum def) []
 
 --------------------------------------------------------------------------------
 
@@ -158,6 +194,10 @@ nameOfUnionDecode :: Union a -> Haskell.Name
 nameOfUnionDecode =
   nameOfDecodeN . nameOfUnion
 
+nameOfUnionEncode :: Union a -> Haskell.Name
+nameOfUnionEncode =
+  nameOfEncodeN . nameOfUnion
+
 nameOfUnionAlt :: Union a -> Field a -> Haskell.Name
 nameOfUnionAlt union field =
   nameOfAlt (union ^. name) (field ^. name)
@@ -165,3 +205,7 @@ nameOfUnionAlt union field =
 conOfUnionAlt :: Union a -> Field a -> Haskell.Exp
 conOfUnionAlt union field =
   Con . UnQual $ nameOfUnionAlt union field
+
+patOfUnionAlt :: Union a -> Field a -> Haskell.Pat -> Haskell.Pat
+patOfUnionAlt union field pat =
+  PApp (UnQual $ nameOfUnionAlt union field) [pat]

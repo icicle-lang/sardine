@@ -42,7 +42,7 @@ boxedOfTypeReference = \case
   BinaryType _ _ ->
     pure Boxed
   SListType _ annot ->
-    hoistError (SListDeprecated annot)
+    hoistCE (SListDeprecated annot)
   BoolType _ _ ->
     pure Unboxed
   ByteType _ _ ->
@@ -89,7 +89,7 @@ haskellOfTypeReference = \case
   BinaryType _ _ ->
     pure $ conT "ByteString"
   SListType _ annot ->
-    hoistError (SListDeprecated annot)
+    hoistCE (SListDeprecated annot)
   BoolType _ _ ->
     pure $ conT "Bool"
   ByteType _ _ ->
@@ -169,7 +169,7 @@ qconOfEnumDef enum def =
 dataOfEnum :: Enum a -> Compiler a Decl
 dataOfEnum enum =
   if null (enum ^. values) then
-    hoistError (EnumIsUninhabited enum)
+    hoistCE (EnumIsUninhabited enum)
   else do
     let
       name = nameOfEnum enum
@@ -178,15 +178,19 @@ dataOfEnum enum =
       DataDecl noLoc DataType [] name [] qcons stdDeriving
 
 qconOfUnionField :: Union a -> Field a -> Compiler a QualConDecl
-qconOfUnionField union field = do
-  typ <- haskellOfTypeReference $ field ^. valueType
-  pure $
-    QualConDecl noLoc [] [] $ ConDecl (nameOfUnionAlt union field) [TyBang BangedTy typ]
+qconOfUnionField union field =
+  case requiredness' field of
+    Optional ->
+      hoistCE (UnionFieldsCannotBeOptional union field)
+    Required -> do
+      typ <- haskellOfTypeReference $ field ^. valueType
+      pure $
+        QualConDecl noLoc [] [] $ ConDecl (nameOfUnionAlt union field) [TyBang BangedTy typ]
 
 dataOfUnion :: Union a -> Compiler a Decl
 dataOfUnion union =
   if null (union ^. fields) then
-    hoistError (UnionIsUninhabited union)
+    hoistCE (UnionIsUninhabited union)
   else do
     let
       tyName = nameOfUnion union
@@ -197,7 +201,7 @@ dataOfUnion union =
 dataOfType :: Thrift.Type a -> Compiler a Decl
 dataOfType = \case
   TypedefType x ->
-    hoistError (TypedefNotSupported x)
+    hoistCE (TypedefNotSupported x)
   EnumType x ->
     dataOfEnum x
   StructType x ->
@@ -205,15 +209,15 @@ dataOfType = \case
   UnionType x ->
     dataOfUnion x
   SenumType x ->
-    hoistError (SenumDeprecated x)
+    hoistCE (SenumDeprecated x)
   ExceptionType x ->
-    hoistError (ExceptionNotSupported x)
+    hoistCE (ExceptionNotSupported x)
 
 dataOfDefinition :: Definition a -> Compiler a Decl
 dataOfDefinition = \case
   ConstDefinition x ->
-    hoistError (ConstNotSupported x)
+    hoistCE (ConstNotSupported x)
   ServiceDefinition x ->
-    hoistError (ServiceNotSupported x)
+    hoistCE (ServiceNotSupported x)
   TypeDefinition x ->
     dataOfType x

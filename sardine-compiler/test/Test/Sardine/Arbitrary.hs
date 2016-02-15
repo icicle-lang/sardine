@@ -9,10 +9,11 @@ module Test.Sardine.Arbitrary (
    , X(..)
    ) where
 
+import           Control.Lens ((^.))
 import           Control.Lens.Plated (universeOnOf, transformOnOf, rewriteOnOf)
-import           Data.Data.Lens (biplate, template)
 
 import           Data.Data (Data)
+import           Data.Data.Lens (biplate, template)
 import           Data.Set (Set)
 import           Data.Text (Text)
 import           Data.Typeable (Typeable)
@@ -27,6 +28,7 @@ import           Language.Thrift.Types (Type(..), TypeReference(..))
 import           Language.Thrift.Types (Enum(..), EnumDef(..), Union(..), Struct(..))
 import           Language.Thrift.Types (Typedef(..), Exception(..), Senum(..))
 import           Language.Thrift.Types (Field(..), FieldRequiredness(..))
+import           Language.Thrift.Types (requiredness)
 
 import           P hiding (Enum)
 
@@ -133,7 +135,7 @@ genStruct env name = do
 
 genUnion :: [Name] -> Name -> Gen (Union X)
 genUnion env name = do
-  fields <- genFields env
+  fields <- filter (\x -> x ^. requiredness /= Just Optional) <$> genFields env
   return (Union name fields [] Nothing X)
 
 genType :: [Name] -> Name -> Gen (Type X)

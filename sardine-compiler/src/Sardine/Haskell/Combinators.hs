@@ -1,14 +1,18 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Sardine.Haskell.Combinators (
     varN
   , conN
-  , qualN
+  , conQ
 
+  , (~>)
   , varT
   , conT
   , appT
+  , intT
 
   , varE
   , conE
@@ -16,6 +20,7 @@ module Sardine.Haskell.Combinators (
   , intE
   , strE
   , caseE
+  , lamE
   , doE
   , doE'
   , letE
@@ -26,6 +31,7 @@ module Sardine.Haskell.Combinators (
   , intP
   , bangP
   , wildP
+  , tupP
 
   , alt
 
@@ -41,6 +47,10 @@ module Sardine.Haskell.Combinators (
   , inlineFunDT
   , inlinableFunDT
 
+  , mapExpAlt
+  , mapExpRhs
+  , mapExpGRhs
+
   , pascalOfText
   , camelOfText
   , moduleOfText
@@ -48,6 +58,9 @@ module Sardine.Haskell.Combinators (
   ) where
 
 import           Data.Char (toLower, toUpper, isUpper, isNumber)
+import           Data.Generics.Geniplate (genUniverseBi', genTransformBi')
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 
@@ -65,9 +78,15 @@ conN :: Text -> Name
 conN =
   Ident . T.unpack . pascalOfText
 
-qualN :: Text -> Text -> QName
-qualN ns name =
-  Qual (ModuleName . T.unpack $ pascalOfText ns) (Ident . T.unpack $ name)
+conQ :: Text -> QName
+conQ =
+  UnQual . conN
+
+infixr 4 ~>
+
+(~>) :: Type -> Type -> Type
+(~>) =
+  TyFun
 
 varT :: Text -> Type
 varT =
@@ -80,6 +99,10 @@ conT =
 appT :: Type -> Type -> Type
 appT =
   TyApp
+
+intT :: Integer -> Type
+intT =
+  TyPromoted . PromotedInteger
 
 varE :: Text -> Exp
 varE =
@@ -104,6 +127,10 @@ strE =
 caseE :: Exp -> [Alt] -> Exp
 caseE =
   Case
+
+lamE :: [Pat] -> Exp -> Exp
+lamE =
+  Lambda noLoc
 
 doE :: [Stmt] -> Exp
 doE =
@@ -163,9 +190,9 @@ wildP :: Pat
 wildP =
   PWildCard
 
-alt :: Pat -> Exp -> Alt
-alt pat exp =
-  Alt noLoc pat (UnGuardedRhs exp) Nothing
+tupP :: [Pat] -> Pat
+tupP =
+  PTuple Boxed
 
 patD :: Pat -> Exp -> Decl
 patD pat exp =
@@ -200,6 +227,25 @@ inlinableFunDT ty name pats exp =
 
 ------------------------------------------------------------------------
 
+mapExpGRhs :: (Exp -> Exp) -> GuardedRhs -> GuardedRhs
+mapExpGRhs f = \case
+  GuardedRhs loc stmts exp ->
+    GuardedRhs loc stmts (f exp)
+
+mapExpRhs :: (Exp -> Exp) -> Rhs -> Rhs
+mapExpRhs f = \case
+  UnGuardedRhs exp ->
+    UnGuardedRhs (f exp)
+  GuardedRhss rhss ->
+    GuardedRhss (fmap (mapExpGRhs f) rhss)
+
+mapExpAlt :: (Exp -> Exp) -> Alt -> Alt
+mapExpAlt f = \case
+  Alt loc pat rhs binds ->
+    Alt loc pat (mapExpRhs f rhs) binds
+
+------------------------------------------------------------------------
+
 pascalOfText :: Text -> Text
 pascalOfText txt =
   case T.uncons txt of
@@ -227,3 +273,26 @@ acronymOfText txt =
       T.empty
     Just (x, xs) ->
       T.toLower $ x `T.cons` T.filter (\c -> isUpper c || isNumber c) xs
+
+------------------------------------------------------------------------
+
+alt :: Pat -> Exp -> Alt
+alt pat exp =
+  let
+    vars = varsOfExp exp
+    pat' = transformPat (wildVars vars) pat
+  in
+    Alt noLoc pat' (UnGuardedRhs exp) Nothing
+
+wildVars :: Set QName -> Pat -> Pat
+wildVars names = \case
+  PVar name | Set.notMember (UnQual name) names ->
+    PWildCard
+  pat ->
+    pat
+
+varsOfExp :: Exp -> Set QName
+varsOfExp = Set.fromList . $(genUniverseBi' [t| Exp -> [QName] |])
+
+transformPat :: (Pat -> Pat) -> Pat -> Pat
+transformPat = $(genTransformBi' [t| (Pat -> Pat) -> Pat -> Pat |])

@@ -11,7 +11,6 @@ import qualified Data.List as List
 import           Data.Text (Text)
 import qualified Data.Text as T
 
-import           Language.Haskell.Exts.QQ (decs)
 import           Language.Haskell.Exts.SrcLoc (noLoc)
 import           Language.Haskell.Exts.Syntax
 
@@ -23,6 +22,7 @@ import           P
 import           Sardine.Compiler.Data
 import           Sardine.Compiler.Decode
 import           Sardine.Compiler.Default
+import           Sardine.Compiler.Encode
 import           Sardine.Compiler.Monad
 import           Sardine.Haskell.Combinators
 
@@ -100,7 +100,7 @@ modN :: Text -> ModuleName
 modN =
   ModuleName . T.unpack
 
-moduleOfProgram :: FilePath -> Program a -> Compiler a Module
+moduleOfProgram :: Ord a => FilePath -> Program a -> Compiler a Module
 moduleOfProgram path = \case
   Program hdrs defs -> do
     let
@@ -115,40 +115,42 @@ moduleOfProgram path = \case
 
       pragmas =
         [ LanguagePragma noLoc [Ident "BangPatterns"]
+        , LanguagePragma noLoc [Ident "ConstraintKinds"]
+        , LanguagePragma noLoc [Ident "DataKinds"]
         , LanguagePragma noLoc [Ident "DoAndIfThenElse"]
+        , LanguagePragma noLoc [Ident "FlexibleContexts"]
         , LanguagePragma noLoc [Ident "LambdaCase"]
         , LanguagePragma noLoc [Ident "NoImplicitPrelude"]
         , LanguagePragma noLoc [Ident "OverloadedStrings"]
+        , LanguagePragma noLoc [Ident "TypeFamilies"]
         , OptionsPragma noLoc (Just GHC) "-fno-warn-unused-binds"
         , OptionsPragma noLoc (Just GHC) "-fno-warn-unused-imports"
         , OptionsPragma noLoc (Just GHC) "-funbox-strict-fields"
         ]
 
       imports =
-        [ importSome (modN "Control.Exception") [varI "throw"]
-        , importSome (modN "Control.Monad") [varI "return", varI "unless", varI "replicateM"]
+        [ importSome (modN "Control.Monad") [varI "return"]
+        , importSome (modN "Data.Bifunctor") [varI "first"]
         , importSome (modN "Data.Bits") [allI "Bits"]
         , importSome (modN "Data.Bool") [allI "Bool", varS "&&"]
         , importSome (modN "Data.ByteString") [varI "ByteString"]
         , importQual (modN "Data.ByteString") (modN "B")
         , importSome (modN "Data.Eq") [allI "Eq"]
-        , importSome (modN "Data.Function") [varS "."]
-        , importSome (modN "Data.Functor") [varS "<$>", varI "fmap"]
+        , importSome (modN "Data.Function") [varS "$", varS ".", varI "id"]
         , importSome (modN "Data.Int") [varI "Int16", varI "Int32", varI "Int64"]
         , importSome (modN "Data.Map") [varI "Map"]
         , importQual (modN "Data.Map") (modN "Map")
         , importSome (modN "Data.Maybe") [allI "Maybe"]
-        , importSome (modN "Data.Ord") [varI "Ord"]
+        , importSome (modN "Data.Ord") [allI "Ord"]
         , importSome (modN "Data.Set") [varI "Set"]
         , importQual (modN "Data.Set") (modN "Set")
         , importSome (modN "Data.Text") [varI "Text"]
         , importQual (modN "Data.Text") (modN "T")
-        , importQual (modN "Data.Text.Encoding") (modN "T")
         , importQual (modN "Data.Vector") (modN "Boxed")
         , importQual (modN "Data.Vector.Unboxed") (modN "Unboxed")
         , importQual (modN "Data.Vector.Hybrid") (modN "Hybrid")
+        , importSome (modN "Data.Void") [varI "absurd"]
         , importSome (modN "Data.Word") [varI "Word8", varI "Word64"]
-        , importSome (modN "GHC.Exts") [allI "SpecConstrAnnotation"]
         , importSome (modN "Prelude") [allI "Num", varI "Double", varS "$!", varI "fromIntegral"]
         , importAll (modN "Sardine.Runtime")
         , importSome (modN "Text.Read") [varI "Read"]
@@ -158,16 +160,14 @@ moduleOfProgram path = \case
     datas <- traverse dataOfDefinition defs
     defaults <- concat <$> traverse defaultOfDefinition defs
     decodes <- concat <$> traverse decodeOfDefinition defs
+    encodes <- concat <$> traverse encodeOfDefinition defs
 
     let
       exports =
-        Just . exportAll $ datas <> decodes
+        Just . exportAll $ datas <> decodes <> encodes
 
     pure . Module noLoc moduleName pragmas Nothing exports imports $
       datas <>
       defaults <>
       decodes <>
-      [decs|
-        data SpecConstr = SpecConstr | SpecConstr2
-        {-# ANN type SpecConstr ForceSpecConstr #-}
-      |]
+      encodes

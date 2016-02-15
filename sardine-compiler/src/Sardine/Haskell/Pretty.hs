@@ -1,3 +1,4 @@
+{-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -102,6 +103,22 @@ ppQOp = \case
   QConOp qname ->
     ppQNameInfix qname
 
+wrapQOp :: QOp -> Exp -> Bool
+wrapQOp qop exp =
+  case (qop, exp) of
+    (QVarOp (UnQual (Symbol "<+>")), _) ->
+      True
+    (QVarOp (UnQual (Symbol "<>")), _) ->
+      True
+    (QVarOp (UnQual (Symbol ".")), _) ->
+      True
+    (QVarOp (UnQual (Symbol "$")), Lambda{}) ->
+      False
+    (QVarOp (UnQual (Symbol "$")), _) ->
+      True
+    _ ->
+      False
+
 ppModuleName :: ModuleName -> Doc
 ppModuleName = \case
   ModuleName name ->
@@ -131,6 +148,32 @@ ppBangType = \case
   UnpackedTy ->
     "{-# UNPACK #-}"
 
+ppPromoted :: Promoted -> Either PrettyError Doc
+ppPromoted = \case
+  PromotedInteger x ->
+    pure $ integer x
+  promoted ->
+    unsupported "Promoted" promoted
+
+ppAssertion :: Asst -> Either PrettyError Doc
+ppAssertion = \case
+  ClassA qname tys -> do
+    ptys <- traverse ppType tys
+    pure $ hsep (ppQName qname : ptys)
+  asst ->
+    unsupported "Assertion" asst
+
+ppContext :: [Asst] -> Either PrettyError Doc
+ppContext = \case
+  [] ->
+    pure mempty
+  [x] -> do
+    px <- ppAssertion x
+    pure $ px <+> "=> "
+  xs -> do
+    pxs <- traverse ppAssertion xs
+    pure $ parens (hcsep pxs) <+> "=> "
+
 ppType :: Type -> Either PrettyError Doc
 ppType = \case
   TyCon qname ->
@@ -139,12 +182,27 @@ ppType = \case
     pf <- ppType f
     px <- ppType x
     pure $ pf <+> savageParens px
+  TyFun f x -> do
+    pf <- ppType f
+    px <- ppType x
+    pure $ pf <+> "->" <+> px
+  TyVar name ->
+    pure $ ppName name
   TyTuple Boxed tys -> do
     ptys <- traverse ppType tys
     pure $ parens (hcsep ptys)
+  TyBang bang ty@TyTuple{} -> do
+    pty <- ppType ty
+    pure $ ppBangType bang <> pty
   TyBang bang ty -> do
     pty <- ppType ty
     pure $ ppBangType bang <> savageParens pty
+  TyPromoted promoted -> do
+    ppPromoted promoted
+  TyForall Nothing ctx ty -> do
+    pctx <- ppContext ctx
+    pty <- ppType ty
+    pure $ pctx <> pty
   ty ->
     unsupported "Type" ty
 
@@ -305,6 +363,11 @@ ppExp = \case
     pure $ ppQName qname
   Con qname ->
     pure $ ppQName qname
+  App f x@Paren{} -> do
+    pf <- ppExp f
+    px <- ppExp x
+    pure $
+      pf <+> px
   App f x -> do
     pf <- ppExp f
     px <- ppExp x
@@ -313,8 +376,14 @@ ppExp = \case
   InfixApp x qop y -> do
     px <- ppExp x
     py <- ppExp y
-    pure $
-      px <+> ppQOp qop <+> py
+    if wrapQOp qop y then
+      pure $
+        align (px <+> ppQOp qop <&&> py)
+    else
+      pure $
+        px <+> ppQOp qop <+> py
+  Let (BDecls []) exp ->
+    ppExp exp
   Let binds exp -> do
     pbinds <- ppBinds binds
     pexp <- ppExp exp
@@ -329,6 +398,11 @@ ppExp = \case
     pure $
       "case" <+> pexp <+> "of" <&>
       "  " <> align (vsep palts)
+  Lambda _ pats exp -> do
+    ppats <- traverse ppPat pats
+    prhs <- ppRhsExp exp
+    pure $
+      "\\" <+> hsep ppats <+> "->" <> prhs
   If i t e -> do
     pi <- ppExp i
     pt <- ppRhsExp t
@@ -348,8 +422,7 @@ ppExp = \case
   Paren exp -> do
     pexp <- ppExp exp
     pure $
-      -- parens pexp
-      pexp
+      parens pexp
   Tuple Boxed exps -> do
     pexps <- traverse ppExp exps
     pure $
@@ -397,11 +470,18 @@ ppPat = \case
     pargs <- traverse ppPat args
     pure $
       hsep (ppQName qname : pargs)
+  PBangPat pat@PTuple{} -> do
+    ppat <- ppPat pat
+    pure $ "!" <> ppat
   PBangPat pat -> do
     ppat <- ppPat pat
     pure $ "!" <> savageParens ppat
   PWildCard ->
     pure "_"
+  PTuple Boxed pats -> do
+    ppats <- traverse ppPat pats
+    pure $
+      parens (hcsep ppats)
   pat ->
     unsupported "Pat" pat
 
