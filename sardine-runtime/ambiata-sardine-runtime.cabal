@@ -18,7 +18,7 @@ library
                     , contravariant                   >= 1.0        && < 1.5
                     , ghc-prim                        >= 0.3        && < 0.5
                     , hybrid-vectors                  == 0.2.*
-                    , primitive                       == 0.6
+                    , primitive                       == 0.6.*
                     , text                            == 1.2.*
                     , transformers                    >= 0.3        && < 0.6
                     , vector                          == 0.11.*
