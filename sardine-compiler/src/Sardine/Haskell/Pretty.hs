@@ -10,7 +10,6 @@ module Sardine.Haskell.Pretty (
   ) where
 
 import qualified Data.List as List
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Language.Haskell.Exts.Syntax

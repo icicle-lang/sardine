@@ -20,7 +20,6 @@ import           Control.Monad.Trans.State.Strict (StateT(..), evalStateT)
 import           Data.Functor.Identity (Identity(..))
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import           Data.Text (Text)
 
 import           P
 

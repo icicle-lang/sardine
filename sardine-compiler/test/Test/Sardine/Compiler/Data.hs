@@ -12,7 +12,6 @@ import           Control.Monad.IO.Class (MonadIO(..))
 
 import           Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import qualified Data.List as List
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 

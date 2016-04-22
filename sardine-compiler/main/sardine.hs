@@ -7,7 +7,6 @@ import           BuildInfo_ambiata_sardine_compiler
 
 import           Control.Monad.IO.Class (liftIO)
 
-import           Data.Text (Text)
 import qualified Data.Text.IO as T
 
 import           Language.Thrift.Parser.Trifecta (thriftIDL)

@@ -41,7 +41,6 @@ module Sardine.Compiler.Names (
 import           Control.Lens ((^.))
 
 import           Data.Char (ord)
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Language.Haskell.Exts.Syntax
