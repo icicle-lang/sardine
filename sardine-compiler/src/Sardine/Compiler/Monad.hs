@@ -25,7 +25,6 @@ import           Control.Monad.Trans.Reader (ReaderT(..), ask)
 import           Control.Monad.Trans.Class (MonadTrans(..))
 
 import           Data.Functor.Identity (Identity(..))
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Language.Haskell.Exts.Syntax (Name, Pat, Exp)

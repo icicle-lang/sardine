@@ -13,7 +13,6 @@ module Sardine.Pretty (
   ) where
 
 import           Data.Char (isSpace)
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           P hiding (Const(..), Enum)

@@ -15,7 +15,6 @@ import           Control.Lens.Plated (universeOnOf, transformOnOf, rewriteOnOf)
 import           Data.Data (Data)
 import           Data.Data.Lens (biplate, template)
 import           Data.Set (Set)
-import           Data.Text (Text)
 import           Data.Typeable (Typeable)
 import qualified Data.List as List
 import qualified Data.Set as Set

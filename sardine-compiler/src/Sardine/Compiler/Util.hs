@@ -13,7 +13,6 @@ module Sardine.Compiler.Util (
 
 import           Control.Lens ((^.))
 
-import           Data.Text (Text)
 import qualified Data.List as List
 
 import           Language.Haskell.Exts.Syntax (Exp, Pat)

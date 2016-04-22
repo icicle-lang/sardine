@@ -6,7 +6,6 @@ module Sardine.Compiler.Error (
   , renderCompilerError
   ) where
 
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           Language.Thrift.Types (Service, Exception, Senum)

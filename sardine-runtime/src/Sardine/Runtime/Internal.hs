@@ -1,6 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 module Sardine.Runtime.Internal (
   -- * Core
@@ -18,10 +20,13 @@ module Sardine.Runtime.Internal (
   , finishEncode
 
   -- * Running
-  , DecodeError(..)
   , runEncodeStrict
   , runEncodeStrict'
   , runDecodeStrict
+
+  -- * Errors
+  , DecodeError(..)
+  , renderDecodeError
 
   -- * Util
   , unsafeEncodeSized
@@ -53,6 +58,7 @@ import           Data.Functor.Contravariant.Divisible (Divisible(..), Decidable(
 import           Data.IORef (newIORef, readIORef, writeIORef)
 import           Data.Int (Int)
 import           Data.Ord (Ord(..))
+import           Data.Text (Text)
 import           Data.Void (absurd)
 
 import           Foreign.ForeignPtr (withForeignPtr)
@@ -242,6 +248,15 @@ data DecodeError x =
   | DecodeNotEnoughBytes !Int
   | DecodeDidNotComplete
     deriving (Eq, Ord, Show)
+
+renderDecodeError :: (x -> Text) -> DecodeError x -> Text
+renderDecodeError render = \case
+  DecodeError err ->
+    render err
+  DecodeNotEnoughBytes _ ->
+    "not enough bytes to complete decode"
+  DecodeDidNotComplete ->
+    "internal decode error, poorly formed decode did not complete"
 
 runDecodeStrict :: Decode x a -> Strict.ByteString -> Either (DecodeError x) a
 runDecodeStrict decode !(ByteString.PS fp (I# off) (I# len)) =
