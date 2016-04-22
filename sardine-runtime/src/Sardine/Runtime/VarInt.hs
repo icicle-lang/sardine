@@ -1,13 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DoAndIfThenElse #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Sardine.Runtime.VarInt (
-  -- * Data
-    VarIntError(..)
-
   -- * Unsigned
-  , encodeVarWord16
+    encodeVarWord16
   , encodeVarWord32
   , encodeVarWord64
   , decodeVarWord16
@@ -21,6 +20,10 @@ module Sardine.Runtime.VarInt (
   , decodeVarInt16
   , decodeVarInt32
   , decodeVarInt64
+
+  -- * Errors
+  , VarIntError(..)
+  , renderVarIntError
   ) where
 
 import           Control.Monad (return, (>>))
@@ -33,6 +36,7 @@ import           Data.Functor ((<$>))
 import           Data.Functor.Contravariant ((>$<))
 import           Data.Int (Int, Int16, Int32, Int64)
 import           Data.Ord (Ord(..))
+import           Data.Text (Text)
 import           Data.Void (absurd)
 import           Data.Word (Word16, Word32, Word64)
 
@@ -61,6 +65,15 @@ data VarIntError =
   | VarInt32TooLong
   | VarInt64TooLong
     deriving (Eq, Ord, Show)
+
+renderVarIntError :: VarIntError -> Text
+renderVarIntError = \case
+  VarInt16TooLong ->
+    "16-bit varint was too long"
+  VarInt32TooLong ->
+    "32-bit varint was too long"
+  VarInt64TooLong ->
+    "64-bit varint was too long"
 
 ------------------------------------------------------------------------
 -- Unsigned

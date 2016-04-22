@@ -2,13 +2,15 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 module Sardine.Runtime.Thrift (
   -- * Data
     TypeId(..)
-  , ThriftError(..)
+  , renderTypeId
 
   -- * Primitives
   , encodeThriftBool
@@ -45,6 +47,10 @@ module Sardine.Runtime.Thrift (
   , skipThriftList
   , skipThriftMap
   , skipThriftStruct
+
+  -- * Errors
+  , ThriftError(..)
+  , renderThriftError
   ) where
 
 import           Control.Monad (return, replicateM_)
@@ -60,8 +66,10 @@ import           Data.Function ((.), id)
 import           Data.Functor ((<$>))
 import           Data.Functor.Contravariant ((>$<))
 import           Data.Int (Int16, Int32, Int64)
+import           Data.Monoid ((<>))
 import           Data.Ord (Ord(..))
 import qualified Data.Text as Strict (Text)
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Typeable (Typeable)
 import           Data.Vector.Generic (Mutable)
@@ -80,8 +88,9 @@ import           Sardine.Runtime.Internal
 import           Sardine.Runtime.Primitive
 import           Sardine.Runtime.VarInt
 
-import           Text.Show (Show(..))
+import           Text.Printf (printf)
 import           Text.Read (Read(..))
+import           Text.Show (Show(..))
 
 ------------------------------------------------------------------------
 -- Data
@@ -103,6 +112,57 @@ data ThriftError =
   | ThriftMultipleUnionAlts !Strict.Text
   | ThriftUnknownUnionAlt !Strict.Text !Int16
     deriving (Eq, Ord, Show)
+
+renderTypeId :: TypeId -> Strict.Text
+renderTypeId (TypeId tid) =
+  case tid of
+    0x1 ->
+      "bool/true"
+    0x2 ->
+      "bool/false"
+    0x3 -> do
+      "byte"
+    0x4 -> do
+      "i16"
+    0x5 -> do
+      "i32"
+    0x6 -> do
+      "i64"
+    0x7 -> do
+      "double"
+    0x8 -> do
+      "binary"
+    0x9 ->
+      "list"
+    0xA ->
+      "set"
+    0xB ->
+      "map"
+    0xC ->
+      "struct"
+    _ ->
+      "unknown/" <> T.pack (printf "0x%X" tid)
+
+renderThriftError :: ThriftError -> Strict.Text
+renderThriftError = \case
+  ThriftVarIntError err ->
+    renderVarIntError err
+  ThriftInvalidType tid ->
+    "invalid thrift type: " <> renderTypeId tid
+  ThriftInvalidEnumValue name val ->
+    "unknown value for thrift enum " <> name <> ": " <> T.pack (show val)
+  ThriftInvalidBoolValue val ->
+    "invalid value for thrift boolean: " <> T.pack (show val)
+  ThriftInvalidFieldType struct field tid ->
+    "thrift struct field " <> struct <> "." <> field <> " had the wrong type-id: " <> renderTypeId tid
+  ThriftMissingField struct field ->
+    "thrift struct " <> struct <> " was missing required field: " <> field
+  ThriftMissingUnionAlt union ->
+    "no alternative were provided for thrift union " <> union <> ", but unions should have exactly one"
+  ThriftMultipleUnionAlts union ->
+    "multiple alternatives were provided for thrift union " <> union <> ", but unions should have exactly one"
+  ThriftUnknownUnionAlt union alt ->
+    "unknown alternative for thrift union " <> union <> ": " <> T.pack (show alt)
 
 ------------------------------------------------------------------------
 -- Primitives
