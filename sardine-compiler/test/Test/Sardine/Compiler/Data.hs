@@ -173,7 +173,7 @@ cabalFile =
       |                    , containers                      == 0.5.*
       |                    , hybrid-vectors                  == 0.2.*
       |                    , text                            == 1.2.*
-      |                    , vector                          == 0.11.*
+      |                    , vector                          >= 0.10       && < 0.12
       |                    , void                            >= 0.5        && < 0.8
       |]
 
