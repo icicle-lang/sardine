@@ -21,7 +21,7 @@ library
                     , primitive                       == 0.6.*
                     , text                            == 1.2.*
                     , transformers                    >= 0.3        && < 0.6
-                    , vector                          == 0.11.*
+                    , vector                          >= 0.10       && < 0.12
                     , void                            >= 0.5        && < 0.8
 
   ghc-options:
@@ -63,4 +63,4 @@ test-suite test
                     , QuickCheck                      >= 2.8.2      && < 2.9
                     , quickcheck-instances            == 0.3.*
                     , text                            == 1.2.*
-                    , vector                          == 0.11.*
+                    , vector                          >= 0.10       && < 0.12
