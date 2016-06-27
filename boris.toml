@@ -1,0 +1,32 @@
+[boris]
+  version = 1
+
+[build.submodules]
+  command = [["dangling-refs"]]
+
+[build.validate]
+  command = [["validate-respect"]]
+
+[build.dist-7-8]
+  command = [
+      ["master", "build", "dist-7-8", "-C", "sardine-compiler"]
+    , ["master", "build", "dist-7-8", "-C", "sardine-runtime"]
+    ]
+
+[build.dist-7-10]
+  command = [
+      ["master", "build", "dist-7-10", "-C", "sardine-compiler"]
+    , ["master", "build", "dist-7-10", "-C", "sardine-runtime"]
+    ]
+
+[build.branches-7-8]
+  command = [
+      ["master", "build", "branches-7-8", "-C", "sardine-compiler"]
+    , ["master", "build", "branches-7-8", "-C", "sardine-runtime"]
+    ]
+
+[build.branches-7-10]
+  command = [
+      ["master", "build", "branches-7-10", "-C", "sardine-compiler"]
+    , ["master", "build", "branches-7-10", "-C", "sardine-runtime"]
+    ]
