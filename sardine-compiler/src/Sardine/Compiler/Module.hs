@@ -13,8 +13,8 @@ import qualified Data.Text as T
 import           Language.Haskell.Exts.SrcLoc (noLoc)
 import           Language.Haskell.Exts.Syntax
 
-import           Language.Thrift.Types (Program(..))
-import           Language.Thrift.Types (Header(..), Namespace(..))
+import           Language.Thrift.AST (Program(..))
+import           Language.Thrift.AST (Header(..), Namespace(..))
 
 import           P
 
@@ -99,7 +99,7 @@ modN :: Text -> ModuleName
 modN =
   ModuleName . T.unpack
 
-moduleOfProgram :: Ord a => FilePath -> Program a -> Compiler a Module
+moduleOfProgram :: FilePath -> Program a -> Compiler a Module
 moduleOfProgram path = \case
   Program hdrs defs -> do
     let

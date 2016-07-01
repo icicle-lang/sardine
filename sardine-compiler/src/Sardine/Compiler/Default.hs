@@ -13,13 +13,13 @@ import           Control.Lens ((^.))
 import           Language.Haskell.Exts.QQ (hs)
 import           Language.Haskell.Exts.Syntax
 
-import           Language.Thrift.Types (Definition(..))
-import           Language.Thrift.Types (Type(..), TypeReference(..))
-import           Language.Thrift.Types (Enum, Union, Struct)
-import           Language.Thrift.Types (HasFields(..))
-import           Language.Thrift.Types (Field, FieldRequiredness(..))
-import           Language.Thrift.Types (values, valueType)
-import qualified Language.Thrift.Types as Thrift
+import           Language.Thrift.AST (Definition(..))
+import           Language.Thrift.AST (Type(..), TypeReference(..))
+import           Language.Thrift.AST (Enum, Union, Struct)
+import           Language.Thrift.AST (HasFields(..))
+import           Language.Thrift.AST (Field, FieldRequiredness(..))
+import           Language.Thrift.AST (values, valueType)
+import qualified Language.Thrift.AST as Thrift
 
 import           P hiding (Enum, exp)
 

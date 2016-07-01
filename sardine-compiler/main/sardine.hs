@@ -4,12 +4,13 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 import           BuildInfo_ambiata_sardine_compiler
+import           DependencyInfo_ambiata_sardine_compiler
 
 import           Control.Monad.IO.Class (liftIO)
 
 import qualified Data.Text.IO as T
 
-import           Language.Thrift.Parser.Trifecta (thriftIDL)
+import           Language.Thrift.Parser (parseFromFile)
 
 import           P
 
@@ -23,8 +24,6 @@ import           System.IO (FilePath)
 import           System.IO (IO, stdout, stderr, print, putStrLn)
 import           System.Exit (exitSuccess)
 
-import           Text.Trifecta.Parser (parseFromFileEx)
-import           Text.Trifecta.Result (Result(..))
 import           Text.Shakespeare.Text (sbt)
 
 import           X.Control.Monad.Trans.Either (EitherT, left, hoistEither)
@@ -42,6 +41,8 @@ main = do
   dispatch parser >>= \case
     VersionCommand ->
       putStrLn buildInfoVersion >> exitSuccess
+    DependencyCommand ->
+      traverse putStrLn dependencyInfo >> exitSuccess
     RunCommand DryRun c ->
       print c >> exitSuccess
     RunCommand RealRun c ->
@@ -69,11 +70,11 @@ run c = case c of
 
 sardineCompile :: FilePath -> EitherT SardineError IO ()
 sardineCompile path = do
-  rthrift <- liftIO $ parseFromFileEx thriftIDL path
+  rthrift <- liftIO $ parseFromFile path
   case rthrift of
-    Failure doc ->
-      left $ SardineParserError doc
-    Success thrift -> do
+    Left err ->
+      left $ SardineParserError err
+    Right thrift -> do
       env <- firstT SardineCompilerError . hoistEither $
         typeEnvOfProgram thrift
       haskell <- firstT SardineCompilerError . hoistEither . runCompiler env $

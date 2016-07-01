@@ -46,8 +46,8 @@ import qualified Data.Text as T
 import           Language.Haskell.Exts.Syntax
 import qualified Language.Haskell.Exts.Syntax as Haskell
 
-import           Language.Thrift.Types (Struct, Enum, Union, Field, EnumDef)
-import           Language.Thrift.Types (HasName(..))
+import           Language.Thrift.AST (Struct, Enum, Union, Field, EnumDef)
+import           Language.Thrift.AST (HasName(..))
 
 import           P hiding (Enum)
 
