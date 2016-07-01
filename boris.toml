@@ -7,26 +7,26 @@
 [build.validate]
   command = [["validate-respect"]]
 
-[build.dist-7-8]
-  command = [
-      ["master", "build", "dist-7-8", "-C", "sardine-compiler"]
-    , ["master", "build", "dist-7-8", "-C", "sardine-runtime"]
-    ]
-
 [build.dist-7-10]
   command = [
       ["master", "build", "dist-7-10", "-C", "sardine-compiler"]
     , ["master", "build", "dist-7-10", "-C", "sardine-runtime"]
     ]
 
-[build.branches-7-8]
+[build.dist-8-0]
   command = [
-      ["master", "build", "branches-7-8", "-C", "sardine-compiler"]
-    , ["master", "build", "branches-7-8", "-C", "sardine-runtime"]
+      ["master", "build", "dist-8-0", "-C", "sardine-compiler"]
+    , ["master", "build", "dist-8-0", "-C", "sardine-runtime"]
     ]
 
 [build.branches-7-10]
   command = [
       ["master", "build", "branches-7-10", "-C", "sardine-compiler"]
     , ["master", "build", "branches-7-10", "-C", "sardine-runtime"]
+    ]
+
+[build.branches-8-0]
+  command = [
+      ["master", "build", "branches-8-0", "-C", "sardine-compiler"]
+    , ["master", "build", "branches-8-0", "-C", "sardine-runtime"]
     ]

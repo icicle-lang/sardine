@@ -8,7 +8,7 @@ module Sardine.Compiler.TypeId (
   ) where
 
 import           Data.List.NonEmpty (NonEmpty(..))
-import           Language.Thrift.Types (TypeReference(..))
+import           Language.Thrift.AST (TypeReference(..))
 
 import           P hiding (Enum, Alt, exp)
 

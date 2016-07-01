@@ -13,10 +13,10 @@ description:           ambiata-sardine-runtime
 library
   build-depends:
                       base                            >= 3          && < 5
-                    , bifunctors                      >= 4.2        && < 5.3
+                    , bifunctors                      >= 4.2        && < 5.4
                     , bytestring                      == 0.10.*
                     , contravariant                   >= 1.0        && < 1.5
-                    , ghc-prim                        >= 0.3        && < 0.5
+                    , ghc-prim                        >= 0.3        && < 0.6
                     , hybrid-vectors                  == 0.2.*
                     , primitive                       == 0.6.*
                     , text                            == 1.2.*

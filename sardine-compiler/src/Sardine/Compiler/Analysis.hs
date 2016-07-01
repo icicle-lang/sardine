@@ -6,10 +6,10 @@ module Sardine.Compiler.Analysis (
   , typeEnvOfProgram
   ) where
 
-import           Language.Thrift.Types (Program(..), Definition(..))
-import           Language.Thrift.Types (Type(..))
-import           Language.Thrift.Types (Enum(..), Union(..), Struct(..))
-import qualified Language.Thrift.Types as Thrift
+import           Language.Thrift.AST (Program(..), Definition(..))
+import           Language.Thrift.AST (Type(..))
+import           Language.Thrift.AST (Enum(..), Union(..), Struct(..))
+import qualified Language.Thrift.AST as Thrift
 
 import           P hiding (Enum)
 

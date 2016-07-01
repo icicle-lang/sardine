@@ -194,7 +194,7 @@ unsafeEncodeVar (I# maxLen) writeVar =
 {-# INLINE unsafeEncodeVar #-}
 
 encodeStep7 ::
-  (Show a, Bits a, Integral a) =>
+  (Bits a, Integral a) =>
   Int# ->
   (Addr# -> DstAddr -> a -> (DstAddr -> IO ()) -> IO ()) ->
   Addr# ->

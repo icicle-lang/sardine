@@ -8,8 +8,8 @@ module Sardine.Compiler.Error (
 
 import qualified Data.Text as T
 
-import           Language.Thrift.Types (Service, Exception, Senum)
-import           Language.Thrift.Types (Const, Typedef, Enum, Union, Field)
+import           Language.Thrift.AST (Service, Exception, Senum)
+import           Language.Thrift.AST (Const, Typedef, Enum, Union, Field)
 
 import           P hiding (Const, Enum)
 

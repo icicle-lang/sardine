@@ -72,7 +72,6 @@ import qualified Data.Text as Strict (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Typeable (Typeable)
-import           Data.Vector.Generic (Mutable)
 import qualified Data.Vector.Generic as Generic
 import qualified Data.Vector.Generic.Mutable as MGeneric
 import qualified Data.Vector.Hybrid as Hybrid
@@ -306,7 +305,6 @@ encodeThriftList (TypeId tid) encodeElem =
 
 decodeThriftList ::
   Generic.Vector vv v =>
-  MGeneric.MVector (Mutable vv) v =>
   (TypeId -> Decode ThriftError ()) ->
   Decode ThriftError v ->
   Decode ThriftError (vv v)
@@ -386,8 +384,6 @@ encodeThriftMap (TypeId ktid) (TypeId vtid) encodeKey encodeVal =
 decodeThriftMap ::
   Generic.Vector vk k =>
   Generic.Vector vv v =>
-  MGeneric.MVector (Mutable vk) k =>
-  MGeneric.MVector (Mutable vv) v =>
   (TypeId -> Decode ThriftError ()) ->
   (TypeId -> Decode ThriftError ()) ->
   Decode ThriftError k ->

@@ -17,9 +17,9 @@ import qualified Data.List as List
 
 import           Language.Haskell.Exts.Syntax (Exp, Pat)
 
-import           Language.Thrift.Types (EnumDef(..))
-import           Language.Thrift.Types (Field, FieldRequiredness(..))
-import           Language.Thrift.Types (requiredness, identifier, name)
+import           Language.Thrift.AST (EnumDef(..))
+import           Language.Thrift.AST (Field, FieldRequiredness(..))
+import           Language.Thrift.AST (requiredness, identifier, name)
 
 import           Sardine.Compiler.Error
 import           Sardine.Haskell.Combinators

@@ -22,12 +22,12 @@ import qualified Data.Text as T
 
 import           Disorder.Corpus
 
-import           Language.Thrift.Types (Program(..), Header(..), Definition(..))
-import           Language.Thrift.Types (Type(..), TypeReference(..))
-import           Language.Thrift.Types (Enum(..), EnumDef(..), Union(..), Struct(..))
-import           Language.Thrift.Types (Typedef(..), Exception(..), Senum(..))
-import           Language.Thrift.Types (Field(..), FieldRequiredness(..))
-import           Language.Thrift.Types (requiredness)
+import           Language.Thrift.AST (Program(..), Header(..), Definition(..))
+import           Language.Thrift.AST (Type(..), TypeReference(..))
+import           Language.Thrift.AST (Enum(..), EnumDef(..), Union(..), Struct(..))
+import           Language.Thrift.AST (Typedef(..), Exception(..), Senum(..))
+import           Language.Thrift.AST (Field(..), FieldRequiredness(..))
+import           Language.Thrift.AST (requiredness)
 
 import           P hiding (Enum)
 

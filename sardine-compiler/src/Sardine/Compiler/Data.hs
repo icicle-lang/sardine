@@ -16,12 +16,12 @@ import           Language.Haskell.Exts.SrcLoc (noLoc)
 import           Language.Haskell.Exts.Syntax
 import qualified Language.Haskell.Exts.Syntax as Haskell
 
-import           Language.Thrift.Types (Definition(..))
-import           Language.Thrift.Types (Type(..), TypeReference(..))
-import           Language.Thrift.Types (Union, Struct, Enum)
-import           Language.Thrift.Types (EnumDef, Field, FieldRequiredness(..))
-import           Language.Thrift.Types (fields, valueType, values)
-import qualified Language.Thrift.Types as Thrift
+import           Language.Thrift.AST (Definition(..))
+import           Language.Thrift.AST (Type(..), TypeReference(..))
+import           Language.Thrift.AST (Union, Struct, Enum)
+import           Language.Thrift.AST (EnumDef, Field, FieldRequiredness(..))
+import           Language.Thrift.AST (fields, valueType, values)
+import qualified Language.Thrift.AST as Thrift
 
 import           P hiding (Enum)
 

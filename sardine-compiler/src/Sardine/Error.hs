@@ -9,26 +9,25 @@ module Sardine.Error (
 
 import qualified Data.Text as T
 
-import           Text.Trifecta.Delta (Delta)
-
 import           P hiding (Const, Enum)
 
 import           Sardine.Compiler.Error
 import           Sardine.Haskell.Pretty
 
-import           Text.PrettyPrint.ANSI.Leijen (Doc)
+import           Text.Megaparsec.Error (ParseError, Dec, parseErrorPretty)
+import           Text.Megaparsec.Pos (SourcePos)
 
 
 data SardineError =
-    SardineParserError !Doc
-  | SardineCompilerError !(CompilerError Delta)
+    SardineParserError !(ParseError Char Dec)
+  | SardineCompilerError !(CompilerError SourcePos)
   | SardinePrettyError !PrettyError
     deriving (Show)
 
 renderSardineError :: SardineError -> Text
 renderSardineError = \case
-  SardineParserError doc ->
-    T.pack (show doc)
+  SardineParserError err ->
+    T.pack $ parseErrorPretty err
   SardineCompilerError e ->
     renderCompilerError e
   SardinePrettyError e ->
